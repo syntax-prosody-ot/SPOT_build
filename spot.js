@@ -1594,7 +1594,106 @@ function matchMaxPS(sTree, pTree, pCat, options){
 function matchMaxProsody(sTree, pTree, pCat, options){
 	return matchMaxSyntax(pTree, sTree, pCat, options);
 }
-/****************
+
+//Match Min constraints
+
+/* Match-SP(scat-min, pcat-min): Assign a violation for every node of syntactic
+ * category s that does not dominate another node of category s in the
+ * syntactic tree, and is not mapped to a corresponding prosodic node of
+ * category p, where p=catMap(s), such that p does not dominate another node
+ * of category p.
+ * ex. Match a minimal xp with a minimal phi.
+ */
+
+//match a syntactic tree with a prosodic tree
+function MatchMinSP(s, ptree, cat) {
+  var vcount = 0;
+  //if s has children
+  if(s.children && s.children.length) {
+    //if stree cat is the same as input cat & stree is minimal & does not have a match on the ptree
+    if(s.cat === cat && isMinimal(s)===true && hasMinMatch(s, ptree)===false) {
+      vcount++;
+    }
+    //check every node in s, check for matching Minimals
+    for(var i = 0; i < s.children.length; i++) {
+      vcount += MatchMinSP(s.children[i], ptree, cat);
+    }
+  }
+  return vcount;
+}
+
+//match prosody tree with a syntax tree
+function MatchMinPS(s, ptree, cat) {
+  var vcount = MatchMinSP(ptree, s, cat);
+  return vcount;
+}
+
+//helper function, similar to hasMatch, different in that it ensures that ptree is minimal
+function hasMinMatch(sNode, pTree) {
+  var leaves = getLeaves(sNode);
+  if(catsMatch(sNode.cat, pTree.cat) && sameIds(getLeaves(pTree), leaves) && isMinimal(pTree)) {
+    return true;
+  } else if(!pTree.children || pTree.children.length === 0) {
+    return false;
+  } else {
+    for(var i = 0; i < pTree.children.length; i++) {
+      var child = pTree.children[i];
+      if(hasMinMatch(sNode, child)) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+function noShift(stree, ptree, cat){
+    //Get lists of terminals
+    
+    var sleaves = getLeaves(stree);
+    var pleaves = getLeaves(ptree);
+    var sorder = new Array(sleaves.length);
+    var porder = new Array(pleaves.length);
+
+    if(sleaves.length != pleaves.length){
+        throw new Error("NoShift problem: The stree and ptree have different numbers of terminals!");
+    }
+
+    for(var i in sleaves){
+        sorder[i] = sleaves[i].id;
+        porder[i] = pleaves[i].id;
+    }
+    //for the gradient version, we may want to use parenthesize tree for this, but we'll worry about that later.
+
+    //counter
+    var j = 0;
+    //flag for whether a shift in order has been detected
+    var shiftFound = false;
+
+    while(!shiftFound && j<sorder.length){
+        var x = sorder[j];
+        // establish lists of x precedes
+        var y = sorder.slice(j+1, sorder.length);
+        var px = porder.indexOf(sorder[j]);
+        var z = porder.slice(px+1, porder.length);
+
+        //if y has more elements than z, y can't possibly be a subset of z
+        if(y.length > z.length){
+            shiftFound = true;
+        }
+
+        //otherwise, y may or may not be a subset of z
+        var k = 0;
+        while(k<sorder.length){
+            if(porder.indexOf(sorder[k])<0){
+                shiftFound = true;
+            }
+            k++;
+        }
+
+        //increment outer counter and check the next word
+        j++;
+    }
+    return shiftFound ? 1 : 0;
+}/****************
 * Function that implements Nonrecursivity, version 1:
 * "Assign a violation for every node of category x immediately dominated
 * by another node of category x"
@@ -3184,11 +3283,16 @@ function generateWordOrders(wordList, clitic){
 	stree: a syntatic tree, with the clitic marked as cat: "clitic"
 	words: optional string or array of strings which are the desired leaves
 	options: options for GEN
+
+   Returns: GEN run on each possible order of the words, where possible orders 
+   are those where terminals other than the clitic remian in place but the clitic can occupy any position.
+
+   Caveat: If there are multiple clitics, only the first will be moved.
 */
-function genWithCliticMovement(stree, words, options){
+function GENwithCliticMovement(stree, words, options){
 	// Identify the clitic of interest
 	var clitic = '';
-	// First try to read it off the tree
+	// First try to read words and clitic off the tree
 	var leaves = getLeaves(stree);
 	if(leaves.length > 0 && leaves[0].id){
 		console.log(leaves);
@@ -3199,7 +3303,7 @@ function genWithCliticMovement(stree, words, options){
 			leaf++;
 		}
 		if(clitic === '')
-			throw new Error("genWithCliticMovement was called but no node in stree has category clitic was provided in stree");
+			throw new Error("GENWithCliticMovement was called but no node in stree has category clitic was provided in stree");
 	}
 	//Otherwise, get the clitic from words
 	else
@@ -3215,7 +3319,11 @@ function genWithCliticMovement(stree, words, options){
 
 	//Make sure words is defined before using it to generate word orders
 	if(!words || words.length<leaves.length){
-		words = leaves;
+		words = new Array(leaves.length);
+		for(var i in leaves){
+			words[i] = leaves[i].id;
+		}
+		console.log(words);
 	}
 	var wordOrders = generateWordOrders(words, clitic);
 	var candidateSets = new Array(wordOrders.length);

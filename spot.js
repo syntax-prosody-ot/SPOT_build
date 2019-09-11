@@ -3128,15 +3128,18 @@ var phiNum = 0;
 var wNum = 0;
 
 /* Takes a list of words and returns the candidate set of trees (JS objects)
-   Options is an object consisting of the parameters of GEN. Its properties can be: 
+   Options is an object consisting of the parameters of GEN. Its properties can be:
    - obeysExhaustivity (boolean or array of categories at which to require conformity to exhaustivity)
    - obeysHeadedness (boolean)
    - obeysNonrecursivity (boolean)
-   - addTones (boolean)
+   - addTones (string). Possible values include:
+	 		- "addJapaneseTones"
+			- "addIrishTones_Elfner"
+			- "addIrishTones_Kalivoda"
 */
 window.GEN = function(sTree, words, options){
 	options = options || {}; // if options is undefined, set it to an empty object (so you can query its properties without crashing things)
-	
+
 	if(typeof words === "string") { // words can be a space-separated string of words or an array of words; if string, split up into an array
 		if (!words) { // if empty, scrape words from sTree
 			words = getLeaves(sTree);
@@ -3164,15 +3167,15 @@ window.GEN = function(sTree, words, options){
 	for(var i=0; i<words.length; i++){
 		leaves.push(omegafy(words[i]));
 	}
-	
+
 	var recursiveOptions = {};
 	for (var k in options) {
 		if (options.hasOwnProperty(k) && k !== 'requirePhiStem')
 			recursiveOptions[k] = options[k];
 	}
-	
+
 	var rootlessCand = addPhiWrapped(gen(leaves, recursiveOptions), options);
-	
+
 	var candidates = [];
 	for(var i=0; i<rootlessCand.length; i++){
 		var iota = iotafy(rootlessCand[i], options);
@@ -3180,8 +3183,20 @@ window.GEN = function(sTree, words, options){
 			continue;
 		if (options.obeysHeadedness && !iotaIsHeaded(iota))
 			continue;
-		if(options.addTones)
-			addJapaneseTones(iota);
+		if (options.addTones){
+			try {
+				window[options.addTones](iota); //calls the function named in the string
+			}
+			catch(err){
+				if (typeof(options.addTones) == "boolean"){
+					addJapaneseTones(iota); //backwards compatibility
+					console.log("The addTones option has been updated. It now takes the name of a function as its value. Next time, try {addTones: 'addJapaneseTones'}");
+				}
+				else{
+					throw new Error("Something isn't right with the addTones option. The value of addTones must be a string with the name of a tone function, no parentheses, eg. {addTones: 'addJapaneseTones'}");
+				}
+			}
+		}
 		candidates.push([sTree, iota]);
 	}
 	return candidates;
@@ -3246,7 +3261,7 @@ function omegafy(word){
 function gen(leaves, options){
 	var candidates = [];	//each candidate will be an array of siblings
 	if(!(leaves instanceof Array))
-		throw new Error(leaves+" is not a list of leaves.");	
+		throw new Error(leaves+" is not a list of leaves.");
 
 	//Base case: 0 leaves
 	if(leaves.length === 0){
@@ -3258,15 +3273,15 @@ function gen(leaves, options){
 
 	//Recursive case: at least 1 word. Consider all candidates where the first i words are grouped together
 	for(var i = 1; i <= leaves.length; i++){
-	
+
 		var rightsides = addPhiWrapped(gen(leaves.slice(i, leaves.length), options), options);
 
 		//Case 1: the first i leaves attach directly to parent (no phi wrapping)
-	
+
 		var leftside = leaves.slice(0,i);
-		
+
 		// for case 1, we don't need to check the left side for nonrecursivity, because it's all leaves
-		
+
 		//Combine the all-leaf leftside with all the possible rightsides that have a phi at their left edge (or are empty)
 		for(var j = 0; j<rightsides.length; j++){
 			if(!rightsides[j].length || rightsides[j][0].cat === 'phi')
@@ -3275,9 +3290,9 @@ function gen(leaves, options){
 				candidates.push(cand);
 			}
 		}
-	
-		
-	
+
+
+
 		//Case 2: the first i words are wrapped in a phi
 		if(i<leaves.length){
 			var phiLeftsides = gen(leaves.slice(0,i), options);
@@ -3287,15 +3302,15 @@ function gen(leaves, options){
 				if (!phiNode)
 					continue;
 				var leftside = [phiNode];
-				
+
 				for(var j = 0; j<rightsides.length; j++)
 				{
 					cand = leftside.concat(rightsides[j]);
 					candidates.push(cand);
 				}
-			} 
+			}
 		}
-	
+
 	}
 
 	return candidates;
@@ -3364,12 +3379,12 @@ function generateWordOrders(wordList, clitic){
 	return orders;
 }
 
-/* Arguments: 
+/* Arguments:
 	stree: a syntatic tree, with the clitic marked as cat: "clitic"
 	words: optional string or array of strings which are the desired leaves
 	options: options for GEN
 
-   Returns: GEN run on each possible order of the words, where possible orders 
+   Returns: GEN run on each possible order of the words, where possible orders
    are those where terminals other than the clitic remian in place but the clitic can occupy any position.
 
    Caveat: If there are multiple clitics, only the first will be moved.
@@ -3381,7 +3396,7 @@ function GENwithCliticMovement(stree, words, options){
 	var leaves = getLeaves(stree);
 	if(leaves.length > 0 && leaves[0].id){
 		console.log(leaves);
-		var leaf = 0;	
+		var leaf = 0;
 		while(clitic === '' && leaf < leaves.length){
 			if(leaves[leaf].cat==="clitic")
 				clitic = leaves[leaf].id;
@@ -3427,7 +3442,7 @@ function UTree(root) {
 	this.root = root;
 	this.treeIndex = uTreeCounter++;
 	treeUIsTreeMap[this.treeIndex] = this;
-	
+
 	this.nodeNum = 0;
 	this.nodeMap = {};
 	this.addMeta = function(node, parent) {
@@ -3441,7 +3456,7 @@ function UTree(root) {
 	};
 	this.addMeta(this.root);
 	this.root.m.isRoot = true;
-	
+
 	function assignDims(node) {
 		var height = 0, width = 0;
 		if (node.children && node.children.length) {
@@ -3458,7 +3473,7 @@ function UTree(root) {
 		node.m.width = width;
 		return node.m;
 	}
-	
+
 	this.toTable = function() {
 		assignDims(this.root);
 		var table = [];
@@ -3470,7 +3485,7 @@ function UTree(root) {
 			table[height].push({node: node, width: node.m.width, hasStem: parentHeight > height, stemOnly: false});
 			for (var h = height+1; h < parentHeight; h++) {
 				table[h].push({width: node.m.width, stemOnly: true});
-			}				
+			}
 			if (node.children && node.children.length) {
 				for (var i = 0; i < node.children.length; i++) {
 					processNode(node.children[i], height);
@@ -3484,7 +3499,7 @@ function UTree(root) {
 	function makeElementId(elType, node) {
 		return [elType, node.m.nodeId, self.treeIndex].join('-');
 	}
-	
+
 	function toInnerHtmlFrags(frags) {
 		if (!frags) frags = [];
 		var table = self.toTable();
@@ -3532,13 +3547,13 @@ function UTree(root) {
 	this.refreshHtml = function() {
 		document.getElementById('treeUI-'+self.treeIndex).innerHTML = self.toInnerHtml();
 	}
-	
+
 	this.toJSON = function() {
 		return JSON.stringify(this.root, function(k, v) {
 			if (k !== 'm') return v;
 		}, 4);
 	};
-	
+
 	this.addParent = function(nodes) {
 		var indices = [], parent = nodes[0].m.parent;
 		if (!parent) {
@@ -3556,37 +3571,37 @@ function UTree(root) {
 		for (var i = 1; i < indices.length; i++) {
 			if (indices[i] !== indices[i-1]+1) throw new Error('Nodes must be adjacent sisters.');
 		}
-	
+
 		// create new node, connect it to parent
 		var newNode = {cat: 'xp'};
 		this.addMeta(newNode, parent);
 		newNode.id = 'XP_' + newNode.m.nodeId; // this does not guarantee uniqueness, but probably close enough for now
-		
+
 		// connect new node to children
 		var firstChildIndex = indices[0], lastChildIndex = indices[indices.length-1];
 		newNode.children = parent.children.slice(firstChildIndex, lastChildIndex+1);
-		
+
 		// connect children to new node
 		for (var i = 0; i < newNode.children.length; i++) {
 			newNode.children[i].m.parent = newNode;
 		}
-		
+
 		// connect parent to new node
 		parent.children = parent.children.slice(0, firstChildIndex).concat([newNode], parent.children.slice(lastChildIndex+1));
 	};
-	
+
 	this.deleteNode = function(node) {
 		// connect children to parent
 		var parent = node.m.parent, children = node.children || [];
 		for (var i = 0; i < children.length; i++) {
 			children[i].m.parent = parent;
 		}
-		
+
 		// connect parent to children
 		if (node.m.parent) {
 			var index = node.m.parent.children.indexOf(node);
 			node.m.parent.children = node.m.parent.children.slice(0, index).concat(children, node.m.parent.children.slice(index+1));
-		
+
 			// remove from node map
 			delete this.nodeMap[node.m.nodeId];
 		} else { // delete UTree and associated element if root
@@ -3599,7 +3614,7 @@ function UTree(root) {
 
 UTree.fromTerminals = function(terminalList) {
 	var dedupedTerminals = deduplicateTerminals(terminalList);
-	
+
 	//Make the js tree (a dummy tree only containing the root CP)
 	var root = {
 		"id":"CP1",
@@ -3618,7 +3633,7 @@ UTree.fromTerminals = function(terminalList) {
 
 function getSTrees() {
 	var spotForm = document.getElementById('spotForm');
-	var sTrees; 
+	var sTrees;
 	sTrees = JSON.parse(spotForm.sTree.value);
 	if (!(sTrees instanceof Array)) {
 		sTrees = [sTrees];
@@ -3683,12 +3698,12 @@ function danishTrees() {
 window.addEventListener('load', function(){
 
 	var spotForm = document.getElementById('spotForm');
-	
+
 	if (!spotForm) {
 		console.error('no spot form');
 		return;
 	}
-	
+
 	spotForm.addEventListener('change', function(ev) {
 		var target = ev.target;
 		if (target.name === 'constraints') {
@@ -3704,7 +3719,7 @@ window.addEventListener('load', function(){
 
 	spotForm.onsubmit=function(e){
 		if (e.preventDefault) e.preventDefault();
-		
+
 		//Build a list of checked constraints.
 		var constraintSet = [];
 		for(var i=0; i<spotForm.constraints.length; i++){
@@ -3714,7 +3729,7 @@ window.addEventListener('load', function(){
 				//Figure out all the categories selected for the constraint
 				if(spotForm['category-'+constraint]){
 					var constraintCatSet = spotForm['category-'+constraint];
-					for(var j=0; j<constraintCatSet.length; j++){	
+					for(var j=0; j<constraintCatSet.length; j++){
 						var categoryBox = constraintCatSet[j];
 						if(categoryBox.checked){
 							var category = categoryBox.value;
@@ -3726,9 +3741,9 @@ window.addEventListener('load', function(){
 					constraintSet.push(constraint);
 			}
 		}
-		
+
 		//Get the input syntactic tree.
-		var sTrees; 
+		var sTrees;
 		try{
 			sTrees = getSTrees();
 		}
@@ -3737,10 +3752,10 @@ window.addEventListener('load', function(){
 			alert(e.message);
 			return;
 		}
-		
+
 		//Get input to GEN.
 		var pString = spotForm.inputToGen.value;
-		
+
 		//Build a list of checked GEN options.
 		var genOptions = {};
 		for(var i=0; i<spotForm.genOptions.length; i++){
@@ -3756,22 +3771,30 @@ window.addEventListener('load', function(){
 			}
 			genOptions['obeysExhaustivity'] = exCats;
 		}
-		
+
+		var genTones = false; //true if tones are selected
+
+		if(spotForm.toneOptions.value != "noTones"){
+			//from radio group near the bottom of spotForm
+			genOptions.addTones = spotForm.toneOptions.value;
+			genTones = true;
+			console.log(genOptions);
+		}
 
 		var csvSegs = [];
 		for (var i = 0; i < sTrees.length; i++) {
 			var sTree = sTrees[i];
 			var candidateSet = GEN(sTree, pString, genOptions);
-			
+
 			//Make the violation tableau with the info we just got.
-			var tabl = makeTableau(candidateSet, constraintSet, {showTones: genOptions.addTones});
+			var tabl = makeTableau(candidateSet, constraintSet, {showTones: genTones});
 			csvSegs.push(tableauToCsv(tabl, ',', {noHeader: i}));
 			writeTableau(tabl);
 			revealNextSegment();
 		}
-		
+
 		saveTextAs(csvSegs.join('\n'), 'SPOT_Results.csv');
-		
+
 		function saveAs(blob, name) {
 			var a = document.createElement("a");
 			a.display = "none";
@@ -3785,22 +3808,22 @@ window.addEventListener('load', function(){
 		function saveTextAs(text, name) {
 			saveAs(new Blob([text], {type: "text/csv", encoding: 'utf-8'}), name);
 		}
-		
+
 		return false;
 	};
-	
+
 	document.getElementById('exhaustivityBox').addEventListener('click', function(){
 		document.getElementById('exhaustivityDetailRow').style.display = 'block';
-	});
+		});
 
 	//Code for generating the JS for a syntactic tree
 	var treeTableContainer = document.getElementById('treeTableContainer');
-	
-	//Open the tree making GUI 
+
+	//Open the tree making GUI
 	document.getElementById('startTreeUIButton').addEventListener('click', function(){
 		document.getElementById('treeUI').style.display = 'block';
 	});
-	
+
 	function refreshHtmlTree(treeIndex) {
 		if (treeIndex === undefined) {
 			for (index of Object.keys(treeUIsTreeMap)) {
@@ -3808,27 +3831,27 @@ window.addEventListener('load', function(){
 			}
 			return;
 		}
-		
+
 		if (treeIndex in treeUIsTreeMap) {
 			treeUIsTreeMap[treeIndex].refreshHtml();
 		}
 		refreshNodeEditingButtons();
 	}
-	
+
 	//Set up the table...
 	document.getElementById('goButton').addEventListener('click', function(){
 		// Get the string of terminals
 		var terminalString = spotForm.sTreeTerminals.value;
 		var terminalList = terminalString.trim().split(/\s+/);
-		
+
 		//Make the js tree (a dummy tree only containing the root CP)
 		var tree = UTree.fromTerminals(terminalList);
 		treeTableContainer.innerHTML += tree.toHtml();
 		refreshNodeEditingButtons();
-		
+
 		document.getElementById('treeUIinner').style.display = 'block';
 	});
-	
+
 	// For testing only
 	/*
 	new UTree({
@@ -3846,7 +3869,7 @@ window.addEventListener('load', function(){
 	refreshHtmlTree();
 	document.getElementById('treeUIinner').style.display = 'block';
 	*/
-	
+
 	//Look at the html tree and turn it into a JSON tree. Put the JSON in the following textarea.
 	document.getElementById('htmlToJsonTreeButton').addEventListener('click', function(){
 		spotForm.sTree.value = JSON.stringify(Object.values(treeUIsTreeMap).map(function(tree) {
@@ -3857,7 +3880,7 @@ window.addEventListener('load', function(){
 	document.getElementById('danishJsonTreesButton').addEventListener('click', function() {
 		spotForm.sTree.value = JSON.stringify(danishTrees(), null, 4);
 	});
-	
+
 	treeTableContainer.addEventListener('input', function(e) {
 		var target = e.target;
 		var idPieces = target.id.split('-');
@@ -3866,7 +3889,7 @@ window.addEventListener('load', function(){
 		var isCat = idPieces[0] === 'catInput';
 		treeUIsTreeMap[treeIndex].nodeMap[nodeId][isCat ? 'cat' : 'id'] = target.value;
 	});
-	
+
 	function refreshNodeEditingButtons() {
 		var hasSelection = treeTableContainer.getElementsByClassName('selected').length > 0;
 		var buttons = document.getElementsByClassName('nodeEditingButton');
@@ -3874,7 +3897,7 @@ window.addEventListener('load', function(){
 			buttons[i].disabled = !hasSelection;
 		}
 	}
-	
+
 	treeTableContainer.addEventListener('click', function(e) {
 		var node = e.target;
 		if (e.target.classList.contains('stemSide') || e.target.classList.contains('inputContainer')) {
@@ -3887,14 +3910,14 @@ window.addEventListener('load', function(){
 			refreshNodeEditingButtons();
 		}
 	});
-	
+
 	function elementToNode(el) {
 		var idFrags = el.id.split('-');
 		if (idFrags[0] !== 'treeNode') return null;
 		var nodeId = idFrags[1];
 		return treeUIsTreeMap[idFrags[2]].nodeMap[nodeId];
 	}
-	
+
 	function getSelectedNodes() {
 		var elements = treeTableContainer.getElementsByClassName('selected');
 		var nodes = [];
@@ -3906,7 +3929,7 @@ window.addEventListener('load', function(){
 		}
 		return nodes;
 	}
-	
+
 	document.getElementById('treeUImakeParent').addEventListener('click', function() {
 		var nodes = getSelectedNodes();
 		try {
@@ -3917,7 +3940,7 @@ window.addEventListener('load', function(){
 			alert('Error, unable to add daughter: ' + err.message);
 		}
 	});
-	
+
 	document.getElementById('treeUIdeleteNodes').addEventListener('click', function() {
 		var nodes = getSelectedNodes();
 		if (nodes) {
@@ -3935,7 +3958,7 @@ window.addEventListener('load', function(){
 		}
 		refreshHtmlTree(treeIndex);
 	});
-	
+
 	document.getElementById('treeUIclearSelection').addEventListener('click', function() {
 		var elements = treeTableContainer.getElementsByClassName('selected');
 		for (var i = elements.length-1; i >= 0; i--) {
@@ -3943,7 +3966,7 @@ window.addEventListener('load', function(){
 		}
 		refreshNodeEditingButtons();
 	});
-	
+
 	document.body.addEventListener('click', function(event) {
 		var el = event.target;
 		var legend = el.closest('legend');
@@ -4177,29 +4200,37 @@ function runConstraint(constraint, sname, pname, cat, expectedViolations) {
 //Produces an array of arrays representing a tableau
 
 function makeTableau(candidateSet, constraintSet, options){
+	//all options passed to makeTableau are passed into parenthesizeTree, so make
+	//sure your options in dependant functions have unique names from other funcs
 	options = options || {};
 	var tableau = [];
 	//Make a header for the tableau, containing all the constraint names.
 	//First element is empty, to correspond to the column of candidates.
 	var sTree = candidateSet[0] ? candidateSet[0][0] : '';
 	if (sTree instanceof Object) {
-		sTree = parenthesizeTree(sTree); //JSON.stringify(sTreeName);
+		var sOptions = {}; //must not include tone options
+		for (var op in options){
+			if (op != "showTones" && op != "addTones"){
+				sOptions[op] = options[op]; //don't copy in tone options
+			}
+		}
+		sTree = parenthesizeTree(sTree, sOptions); //JSON.stringify(sTreeName);
 	}
 	var header = [sTree];
 	for(var i=0; i<constraintSet.length; i++){
 		header.push(constraintSet[i]);
 	}
 	tableau.push(header);
-	
+
 	var getCandidate = options.inputTypeString ? function(candidate) {return candidate;} : globalNameOrDirect;
-	
+
 	//Assess violations for each candidate.
 	for(var i = 0; i < candidateSet.length; i++){
 		var candidate = candidateSet[i];
-		var ptreeStr = options.inputTypeString ? candidate[1] : parenthesizeTree(globalNameOrDirect(candidate[1]), {showTones: options.showTones});
+		var ptreeStr = options.inputTypeString ? candidate[1] : parenthesizeTree(globalNameOrDirect(candidate[1]), options);
 		var tableauRow = [ptreeStr];
 		for(var j = 0; j < constraintSet.length; j++){
-			
+
 			var [constraint, cat] = constraintSet[j].split('-');
 			//var numViolations = runConstraint(constraintAndCat[0], candidate[0], candidate[1], constraintAndCat[1]); ++lastSegmentId; // show log of each constraint run
 			var oldDebugOn = logreport.debug.on;
@@ -4231,7 +4262,7 @@ function tableauToCsv(tableau, separator, options) {
 				row[j] = '"' + row[j] + '"';
 			}
 		}
-		// TODO: handle special characters (i.e.: cell values containing either double quotes or separator characters) 
+		// TODO: handle special characters (i.e.: cell values containing either double quotes or separator characters)
 		lines.push(row.join(separator));
 	}
 	return lines.join('\n');
@@ -4341,6 +4372,9 @@ function parenthesizeTree(tree, options){
 					parTree.push(' '.repeat(toneIdDiff));
 				if(toneIdDiff < 0)
 					toneTree.push(' '.repeat(-toneIdDiff));
+			}
+			if(showTones && !node.tones){
+				toneTree.push(' '.repeat(node.id.length))
 			}
 		}
 		//	parTree.push(node.id.split('_')[0]);

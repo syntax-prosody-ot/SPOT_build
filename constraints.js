@@ -451,6 +451,36 @@ function findLeaves(ptree) {
   }
   return leaves;
 }
+
+
+/* Assign a violation for every node of category cat 
+such that its rightmost child of category (cat-1) 
+has less than two children.
+*/
+
+function binMinRightmostBranches(s, ptree, cat) {
+  var vcount = 0;
+  //base case: we are at leaf && there are no children
+  //make sure there is children
+  if (ptree.children && ptree.children.length) {
+    if (ptree.cat === cat) {
+      //check rightmost child
+      var rightMost = ptree.children.length - 1;
+      var rightMostChild = ptree.children[rightMost];
+      if (!rightMostChild.children) {
+	rightMostChild.children = [];
+      }
+      if (rightMostChild.children.length < 2) {
+        vcount++;
+      }       
+    }
+    //check other nodes in ptree
+    for(var i = 0; i < ptree.children.length; i++) {
+      vcount += binMaxRightmostBranches(s, ptree.children[i], cat);
+    }       
+  }
+  return vcount;
+};
 /* Binarity that cares about the number of branches */
 
 //sensitive to the category of the parent only (2 branches of any type is acceptable)
@@ -512,6 +542,34 @@ function binMaxBranches(s, ptree, cat){
 	return vcount;
 }
 
+/* Category-sensitive branch-counting constraint 
+* (first proposed by Kalivoda 2019 in "New Analysis of Irish Syntax-Prosody", ms.)
+* Assign a violation for every node of category cat that immediately dominates 
+* more than 2 children of category cat-1
+*/
+function binMaxBrCatSensitive(s, ptree, cat){
+	var vcount = 0;
+	var childcat = pCat.nextLower(cat);
+	if(ptree.children && ptree.children.length){
+		var categorySensitiveBranchCount = 0;
+		if(ptree.cat === cat && ptree.children.length>2){
+			//logreport("VIOLATION: "+ptree.id+" has "+ptree.children.length+" children!");
+			for(var j=0; j < ptree.children.length; j++){
+				if(ptree.children[j].cat===childcat){
+					categorySensitiveBranchCount++;
+				}
+			}
+			if(categorySensitiveBranchCount>2){
+				vcount++;
+			}
+		}
+		for(var i = 0; i<ptree.children.length; i++){
+			vcount += binMaxBrCatSensitive(s, ptree.children[i], cat);
+		}
+	}
+	return vcount;
+}
+
 //sensitive to the category of the parent only (2 branches of any type is acceptable)
 //gradient evaluation: assigns 1 violation for every child past the first 2 ("third-born" or later)
 function binMaxBranchesGradient(s, ptree, cat){
@@ -561,7 +619,7 @@ function binMaxLeaves(s, ptree, c){
 }
 
 /* Gradiant BinMax (Leaves)
-* I don't know how to define this constraint in pros, but it's binMaxLeaves as
+* I don't know how to define this constraint in prose, but it's binMaxLeaves as
 * a gradient constraint instead of a categorical constraint.
 */
 function binMaxLeavesGradient(s, ptree, c){

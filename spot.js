@@ -451,6 +451,36 @@ function findLeaves(ptree) {
   }
   return leaves;
 }
+
+
+/* Assign a violation for every node of category cat 
+such that its rightmost child of category (cat-1) 
+has less than two children.
+*/
+
+function binMinRightmostBranches(s, ptree, cat) {
+  var vcount = 0;
+  //base case: we are at leaf && there are no children
+  //make sure there is children
+  if (ptree.children && ptree.children.length) {
+    if (ptree.cat === cat) {
+      //check rightmost child
+      var rightMost = ptree.children.length - 1;
+      var rightMostChild = ptree.children[rightMost];
+      if (!rightMostChild.children) {
+	rightMostChild.children = [];
+      }
+      if (rightMostChild.children.length < 2) {
+        vcount++;
+      }       
+    }
+    //check other nodes in ptree
+    for(var i = 0; i < ptree.children.length; i++) {
+      vcount += binMaxRightmostBranches(s, ptree.children[i], cat);
+    }       
+  }
+  return vcount;
+};
 /* Binarity that cares about the number of branches */
 
 //sensitive to the category of the parent only (2 branches of any type is acceptable)
@@ -512,6 +542,34 @@ function binMaxBranches(s, ptree, cat){
 	return vcount;
 }
 
+/* Category-sensitive branch-counting constraint 
+* (first proposed by Kalivoda 2019 in "New Analysis of Irish Syntax-Prosody", ms.)
+* Assign a violation for every node of category cat that immediately dominates 
+* more than 2 children of category cat-1
+*/
+function binMaxBrCatSensitive(s, ptree, cat){
+	var vcount = 0;
+	var childcat = pCat.nextLower(cat);
+	if(ptree.children && ptree.children.length){
+		var categorySensitiveBranchCount = 0;
+		if(ptree.cat === cat && ptree.children.length>2){
+			//logreport("VIOLATION: "+ptree.id+" has "+ptree.children.length+" children!");
+			for(var j=0; j < ptree.children.length; j++){
+				if(ptree.children[j].cat===childcat){
+					categorySensitiveBranchCount++;
+				}
+			}
+			if(categorySensitiveBranchCount>2){
+				vcount++;
+			}
+		}
+		for(var i = 0; i<ptree.children.length; i++){
+			vcount += binMaxBrCatSensitive(s, ptree.children[i], cat);
+		}
+	}
+	return vcount;
+}
+
 //sensitive to the category of the parent only (2 branches of any type is acceptable)
 //gradient evaluation: assigns 1 violation for every child past the first 2 ("third-born" or later)
 function binMaxBranchesGradient(s, ptree, cat){
@@ -561,7 +619,7 @@ function binMaxLeaves(s, ptree, c){
 }
 
 /* Gradiant BinMax (Leaves)
-* I don't know how to define this constraint in pros, but it's binMaxLeaves as
+* I don't know how to define this constraint in prose, but it's binMaxLeaves as
 * a gradient constraint instead of a categorical constraint.
 */
 function binMaxLeavesGradient(s, ptree, c){
@@ -3104,6 +3162,117 @@ function hasMatch2(sLeaves, pTree) {
 	});
 	return result;
 }
+/* Built-in Analyses */
+
+//Template for built in analyses
+function my_built_in_analysis(){
+  //Set up a built-in analysis in just a few easy steps
+  /* Step 1: copy and rename this function, create a button that calls your
+   * function in interface1.html
+   */
+  //Step 2: Define the constraint set. Use the following as an example
+  built_in_con([{name: "matchSP", cat:"xp"}, {name: "strongStart_Elfner", cat: "w"}, {name: "binMinBranches", cat: "phi"}, {name: "binMaxBranches", cat: "phi"}]);
+  //shows the tree UI
+  document.getElementById("treeUI").style.display = "block";
+  //Step 3: replace "myTreeHere" with your syntax tree(s). See also built-in_trees.js
+  document.getElementById("stree-textarea").value = JSON.stringify(myTreeHere);
+  /* Step 4: (optional) If you want to annotate your tableaux with tones,
+   * uncomment this block: */
+  /*
+  var toneButtons = document.getElementsByName("toneOptions");
+  for(var x = 0; x < toneButtons.length; x++){
+    if(toneButtons[x].value="addIrishTones_Elfner"){
+      toneButtons[x].setAttribute("checked", true);
+    }
+    else{
+      //we don't want multiple radio buttons to be checked, it gets confusing
+      toneButtons[x].setAttribute("checked", false);
+    }
+  }
+  */
+}
+
+//Irish, as analysed in Elfner (2012), with some useful trees
+function built_in_Irish(){
+  //constraint set for built-in analysis
+  built_in_con([{name: "matchSP", cat:"xp"}, {name: "strongStart_Elfner", cat: "w"}, {name: "binMinBranches", cat: "phi"}, {name: "binMaxBranches", cat: "phi"}]);
+  //show the tree UI
+  document.getElementById("treeUI").style.display = "block";
+  //insert specified input to tree UI
+  document.getElementById("stree-textarea").value = JSON.stringify(irish_trees);
+  //exhaustivity options
+  document.getElementById("exhaustivityBox").setAttribute("checked", "checked");
+  document.getElementById("exhaustivityDetailRow").style.display = "block";
+  //some stuff for tones
+  var toneButtons = document.getElementsByName("toneOptions");
+  for(var x = 0; x < toneButtons.length; x++){
+    if(toneButtons[x].value="addIrishTones_Elfner"){
+      toneButtons[x].setAttribute("checked", true);
+    }
+    else{
+      //we don't want multiple radio buttons to be checked, it gets confusing
+      toneButtons[x].setAttribute("checked", false);
+    }
+  }
+}
+
+/* Function to check all of the boxes for a buil-in constaint set in the UI
+ * takes an array of objects with the properties "name" and "cat"
+ * "name" is the name of a constraint as it is called in SPOT (ie "alignLeft")
+ * "cat" is the category which that constraint should be called on (ie "xp")
+*/
+function built_in_con(input){
+  //all of the fieldsets, which contain the constraint inputs
+  var conFields = document.getElementsByTagName("fieldset");
+  //for the constraint table rows which hide the category options
+  var con_trs;
+  //for the constraint and category checkboxes
+  var con_boxes;
+
+  //iterate over the inputs
+  for(var i = 0; i < input.length; i++){
+    //iterate over the fieldsets
+    for(var x = 0; x < conFields.length; x++){
+      //get all of the table rows in this fieldset
+      con_trs = conFields[x].getElementsByTagName("tr");
+      //iterate over the table rows in this fieldset
+      for(var y = 0; y < con_trs.length; y++){
+        //get checkboxes in this table row
+        con_boxes = con_trs[y].getElementsByTagName("input");
+        //check if constraint is in the current slot if the input
+        //assumes that constraint is the first checkbox
+        if(con_boxes[0].value === input[i].name){
+          //select the constraint
+          con_boxes[0].setAttribute("checked", "checked");
+          //open the fieldset
+          conFields[x].setAttribute("class", "open")
+          //reveal the categories
+          con_trs[y].setAttribute("class", "constraint-checked")
+          //iterate over the check boxes for cateogories
+          //assumes that the constraint is the first check box
+          for(var z = 1; z < con_boxes.length; z++){
+            // select the category if the input calls for it
+            if(con_boxes[z].value === input[i].cat){
+              // see below comment re "checked" == "built_in"
+              con_boxes[z].setAttribute("checked", "built_in");
+            }
+            // deselect category unless already selected by built-in system
+            else if(con_boxes[z].checked !== "built_in"){
+              con_boxes[z].removeAttribute("checked");
+              /* re "checked" == "built_in"
+               * categories that have already been selected (eg. default
+               * category for constraint) should be deselected, unless that
+               * category has already been selected by the built-in system (ie.
+               * both matchSP-xp and matchSP-x0 are desired). By setting
+               * "checked" to "built_in", we can keep track of when this happens
+               */
+            }
+          }
+        }
+      }
+    }
+  }
+}
 function deduplicateTerminals(terminalList) {
 	//Check for duplicate words
 	var occurrences = {};
@@ -3134,13 +3303,68 @@ var wNum = 0;
    - obeysExhaustivity (boolean or array of categories at which to require conformity to exhaustivity)
    - obeysHeadedness (boolean)
    - obeysNonrecursivity (boolean)
+	 - rootCategory (string)
+	 - recursiveCategory (string)
+	 - terminalCategory (string)
    - addTones (string). Possible values include:
 	 		- "addJapaneseTones"
 			- "addIrishTones_Elfner"
 			- "addIrishTones_Kalivoda"
+	- noUnary (boolean): if true, don't create any nodes that immediately dominate only a single terminal. 
 */
 window.GEN = function(sTree, words, options){
 	options = options || {}; // if options is undefined, set it to an empty object (so you can query its properties without crashing things)
+
+	options.recursiveCategory = options.recursiveCategory || "phi"; //sets the default of recursiveCategory option to "phi"
+
+	//set default root root category based on options passed
+	if(!options.rootCategory){ //root category is unspecifed
+		//recursiveCategory is specified as "w"
+		if(options.recursiveCategory === "w"){
+			options.rootCategory = "phi";
+		}
+		else{
+			options.rootCategory = "i";
+		}
+	}
+
+	//set default terminal category based on options passed
+	if(!options.terminalCategory){ //terminalCategory is unspecified
+		//terminalCategory unspecified, recursiveCategory specified as "i"
+		if(options.recursiveCategory === "i"){
+			options.terminalCategory = "phi";
+		}
+		//terminalCategory unspecified, recursiveCategory specified as "w"
+		else if(options.recursiveCategory === "w"){
+			options.terminalCategory = "Ft";
+		}
+		//neither terminalCategory nor recursiveCategory is specified, default to "w"
+		else{
+			options.terminalCategory = "w";
+		}
+	}
+
+	/* the prosodic hierarchy should include the categories specified in
+	 * options.rootCategory, options.recursiveCategory and options.terminalCategory
+	 */
+	if(options.rootCategory || options.recursiveCategory || options.terminalCategory){
+		//the specified root category should probably be highest
+		if(pCat.indexOf(options.rootCategory)<0)
+			pCat.unshift(options.rootCategory);
+		if(pCat.indexOf(options.recursiveCategory)<0 && options.rootCategory !== options.recursiveCategory){
+			//the specified recursive category should be after iota
+			try{
+				var afterI = pCat.indexOf("i") + 1;
+				pCat.splice(afterI, 0, options.recursiveCategory);
+			}
+			catch(err){
+				console.error("make sure pCat contains your recursive category.");
+			}
+		}
+		//the specified terminal category should be right above "syll"
+		if(pCat.indexOf(options.terminalCategory)<0 && options.terminalCategory !== options.recursiveCategory && options.rootCategory !== options.terminalCategory)
+			pCat.splice(-1, 0, options.terminalCategory);
+	 }
 
 	if(typeof words === "string") { // words can be a space-separated string of words or an array of words; if string, split up into an array
 		if (!words) { // if empty, scrape words from sTree
@@ -3167,7 +3391,7 @@ window.GEN = function(sTree, words, options){
 	var leaves = [];
 	phiNum = wNum = 0;
 	for(var i=0; i<words.length; i++){
-		leaves.push(omegafy(words[i]));
+		leaves.push(omegafy(words[i], options.terminalCategory));
 	}
 
 	var recursiveOptions = {};
@@ -3176,7 +3400,13 @@ window.GEN = function(sTree, words, options){
 			recursiveOptions[k] = options[k];
 	}
 
-	var rootlessCand = addPhiWrapped(gen(leaves, recursiveOptions), options);
+	/* if rootCategory and recursiveCategory are the same, we don't want to call
+	 * addPhiWrapped becasue half of the candidates will have a root node with
+	 * only one child, which will be of the same category, ie. {i {i (...) (...)}}
+	 */
+	var rootlessCand = gen(leaves, recursiveOptions)
+	if(options.rootCategory !== options.recursiveCategory)
+	 rootlessCand = addPhiWrapped(gen(leaves, recursiveOptions), options);
 
 	var candidates = [];
 	for(var i=0; i<rootlessCand.length; i++){
@@ -3223,19 +3453,19 @@ function obeysExhaustivity(cat, children) {
 
 function iotafy(candidate, options){
 	if (options && options.obeysExhaustivity){ // check that options.obeysExhaustivity is defined
-		if(typeof options.obeysExhaustivity ==="boolean" && options.obeysExhaustivity && !obeysExhaustivity('i', candidate)){
+		if(typeof options.obeysExhaustivity ==="boolean" && options.obeysExhaustivity && !obeysExhaustivity(options.rootCategory, candidate)){
 			return null;
 		}
-		else if (options.obeysExhaustivity instanceof Array && options.obeysExhaustivity.indexOf('i')>=0 && !obeysExhaustivity('i', candidate)){
+		else if (options.obeysExhaustivity instanceof Array && options.obeysExhaustivity.indexOf(options.rootCategory)>=0 && !obeysExhaustivity(options.rootCategory, candidate)){
 			return null;
 		}
 	}
 	//if we get here, there aren't any relevant exhaustivity violations
-	return {id: 'iota', cat: 'i', children: candidate};
+	return {id: 'root', cat: options.rootCategory, children: candidate};
 }
 
-function omegafy(word){
-	var myCat = 'w';
+function omegafy(word, cat){
+	var myCat = cat || 'w';
 	var wordId = word;
 	var isClitic = word.indexOf('-clitic')>=0;
 	if (isClitic){
@@ -3257,9 +3487,13 @@ function omegafy(word){
 	return wordObj;
 }
 
-// conceptually, returns all possible parenthesizations of leaves that don't have a set of parentheses enclosing all of the leaves
-// format: returns an array of parenthesizations, where each parenthesization is an array of children, where each child is
-// either a phi node (with descendant nodes attached) or a leaf
+/*Conceptually, returns all possible parenthesizations of leaves that don't 
+*	have a set of parentheses enclosing all of the leaves
+* Format: returns an array of parenthesizations, where each parenthesization 
+*	is an array of children, where each child is
+*	either a phi node (with descendant nodes attached) or a leaf
+* Options: 	
+*/
 function gen(leaves, options){
 	var candidates = [];	//each candidate will be an array of siblings
 	if(!(leaves instanceof Array))
@@ -3275,7 +3509,7 @@ function gen(leaves, options){
 
 	//Recursive case: at least 1 word. Consider all candidates where the first i words are grouped together
 	for(var i = 1; i <= leaves.length; i++){
-
+		
 		var rightsides = addPhiWrapped(gen(leaves.slice(i, leaves.length), options), options);
 
 		//Case 1: the first i leaves attach directly to parent (no phi wrapping)
@@ -3286,7 +3520,7 @@ function gen(leaves, options){
 
 		//Combine the all-leaf leftside with all the possible rightsides that have a phi at their left edge (or are empty)
 		for(var j = 0; j<rightsides.length; j++){
-			if(!rightsides[j].length || rightsides[j][0].cat === 'phi')
+			if(!rightsides[j].length || rightsides[j][0].cat === options.recursiveCategory)
 			{
 				var cand = leftside.concat(rightsides[j]);
 				candidates.push(cand);
@@ -3297,6 +3531,10 @@ function gen(leaves, options){
 
 		//Case 2: the first i words are wrapped in a phi
 		if(i<leaves.length){
+			if(options.noUnary && i<2){
+				continue;
+				//Don't generate any candidates where the first terminal is in a phi by itself.
+			}
 			var phiLeftsides = gen(leaves.slice(0,i), options);
 			for(var k = 0; k<phiLeftsides.length; k++)
 			{
@@ -3321,17 +3559,18 @@ function gen(leaves, options){
 function phiify(candidate, options){
 	// Check for Exhaustivity violations below the phi, if phi is listed as one of the exhaustivity levels to check
 	if (options && options.obeysExhaustivity){
-		if ((typeof options.obeysExhaustivity === "boolean" || options.obeysExhaustivity.indexOf('phi')>=0) && !obeysExhaustivity('phi', candidate))
+		if ((typeof options.obeysExhaustivity === "boolean" || options.obeysExhaustivity.indexOf(options.recursiveCategory)>=0) && !obeysExhaustivity(options.recursiveCategory, candidate))
 			return null;
 	}
 	if (options && options.obeysNonrecursivity)
 		for (var i = 0; i < candidate.length; i++)
-			if (candidate[i].cat === 'phi')
+			if (candidate[i].cat === options.recursiveCategory)
 				return null;
-	return {id: 'phi'+(phiNum++), cat: 'phi', children: candidate};
+	return {id: options.recursiveCategory+(phiNum++), cat: options.recursiveCategory, children: candidate};
 }
 
 //Takes a list of candidates and doubles it to root each of them in a phi
+//If options.noUnary, skip phiifying candidates that are only 1 terminal long
 function addPhiWrapped(candidates, options){
 	var origLen = candidates.length;
 	var result = [];
@@ -3339,7 +3578,11 @@ function addPhiWrapped(candidates, options){
 		result = candidates;
 	}
 	for(var i=0; i<origLen; i++){
-		if(candidates[i].length) {
+		var candLen = candidates[i].length;
+		if(candLen) {
+			if(options.noUnary && candLen == 1){
+				continue;
+			}
 			var phiNode = phiify(candidates[i], options);
 			if (phiNode)
 				result.push([phiNode]);

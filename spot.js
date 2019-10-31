@@ -3473,16 +3473,18 @@ function obeysHeadedness(tree){
 	//inner function
 	function nodeIsHeaded(node) {
 		/* Function to check if a node is headed. Relies on the prosodic hierarchy being
-		 * properly defined. Returns true iff one of the node's children is of the
-		 * category directly below its own category on the prosodic hierarchy or the
-		 * node is terminal.
+		 * properly defined. Returns true iff 
+		 * a. one of the node's children is of the category directly below its own category *    on the prosodic hierarchy,
+		 * b. one of the node's descendants is of the same category as the node
+		 * c. the node is terminal.
 		 */
 		var children = node.children;
 		//vacuously true if node is terminal
 		if (!children)
 			return true;
 		for (var i = 0; i < children.length; i++)
-			if (children[i].cat === pCat.nextLower(node.cat)){
+			if (children[i].cat === pCat.nextLower(node.cat) 
+			|| children[i].cat === node.cat){
 				return true;
 			}
 			return false;
@@ -4055,7 +4057,7 @@ window.addEventListener('load', function(){
 					constraintSet.push(constraint);
 			}
 		}
-
+		//console.log(constraintSet);
 		//Get the input syntactic tree.
 		var sTrees;
 		try{
@@ -4095,11 +4097,18 @@ window.addEventListener('load', function(){
 			genTones = spotForm.toneOptions.value;
 			//console.log(genOptions);
 		}
-
+		console.log(genOptions);
+		console.log(GEN({},'a b',{'noUnary':true}));
 		var csvSegs = [];
 		for (var i = 0; i < sTrees.length; i++) {
 			var sTree = sTrees[i];
-			var candidateSet = GEN(sTree, pString, genOptions);
+			if (genOptions['cliticMovement']){
+				var candidateSet = GENwithCliticMovement(sTree, pString, genOptions);
+			}
+			else{
+				var candidateSet = GEN(sTree, pString, genOptions);
+			}
+			
 
 			//Make the violation tableau with the info we just got.
 			var tabl = makeTableau(candidateSet, constraintSet, {showTones: genTones});
@@ -4170,7 +4179,7 @@ window.addEventListener('load', function(){
 	var treeTableContainer = document.getElementById('treeTableContainer');
 
 	//Open the tree making GUI
-	document.getElementById('startTreeUIButton').addEventListener('click', function(){
+	document.getElementById('goButton').addEventListener('click', function(){
 		document.getElementById('treeUI').style.display = 'block';
 	});
 
@@ -4191,7 +4200,7 @@ window.addEventListener('load', function(){
 	//Set up the table...
 	document.getElementById('goButton').addEventListener('click', function(){
 		// Get the string of terminals
-		var terminalString = spotForm.sTreeTerminals.value;
+		var terminalString = spotForm.inputToGen.value;
 		var terminalList = terminalString.trim().split(/\s+/);
 
 		//Make the js tree (a dummy tree only containing the root CP)
@@ -4327,6 +4336,8 @@ window.addEventListener('load', function(){
 				return;
 			}
 		}
+		
+
 		if (el.classList.contains('info')) {
 			el.classList.toggle('showing')
 		}

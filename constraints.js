@@ -54,6 +54,18 @@ function getRightEdge(node){
 	return leaves[leaves.length-1];
 }
 
+function alignPS(sTree, pTree, cat, d){
+	return alignSP(pTree, sTree, cat, d);
+}
+
+function alignLeftPS(sTree, pTree, cat){
+	return alignPS(sTree, pTree, cat, 'left');
+}
+
+function alignRightPS(sTree, pTree, cat){
+	return alignPS(sTree, pTree, cat, 'right');
+}
+
 function wrap(sTree, pTree, cat){
 	var vCount = 0;
 	walkTree(sTree, function(sNode){
@@ -87,11 +99,6 @@ function containsIds(a, b){
 	}
 	return false;
 }
-
-
-
-
-
 /* Function that takes a prosodic tree and returns a version annotated it with the phonological tones that it would have in Japanese or Lekeitio Basque.
 Tones:
 	A -> H*L

@@ -54,6 +54,18 @@ function getRightEdge(node){
 	return leaves[leaves.length-1];
 }
 
+function alignPS(sTree, pTree, cat, d){
+	return alignSP(pTree, sTree, cat, d);
+}
+
+function alignLeftPS(sTree, pTree, cat){
+	return alignPS(sTree, pTree, cat, 'left');
+}
+
+function alignRightPS(sTree, pTree, cat){
+	return alignPS(sTree, pTree, cat, 'right');
+}
+
 function wrap(sTree, pTree, cat){
 	var vCount = 0;
 	walkTree(sTree, function(sNode){
@@ -87,11 +99,6 @@ function containsIds(a, b){
 	}
 	return false;
 }
-
-
-
-
-
 /* Function that takes a prosodic tree and returns a version annotated it with the phonological tones that it would have in Japanese or Lekeitio Basque.
 Tones:
 	A -> H*L
@@ -4135,8 +4142,15 @@ window.addEventListener('load', function(){
 
 		return false;
 	};
-
-
+	//show/hide the tree code area
+	document.getElementById('tree-code-box').addEventListener('click', function(){
+		if (document.getElementById('tree-code-area').style.display === 'none' && document.getElementById('tree-code-box').checked){
+			document.getElementById('tree-code-area').style.display = 'block';
+		}
+		else{
+			document.getElementById('tree-code-area').style.display = 'none';
+		}
+	});
 	document.getElementById('exhaustivityBox').addEventListener('click', function(){
 		if (document.getElementById('exhaustivityDetailOption1').style.display === 'none' && document.getElementById('exhaustivityBox').checked){
 			document.getElementById('exhaustivityDetailOption1').style.display = 'table-cell';
@@ -4733,8 +4747,7 @@ var categoryBrackets = {
    - invisibleCategories: by default, every category in categoryBrackets gets a bracket
    - parens: default mappings in categoryBrackets can be overwritten with a map
    - showNewCats: if true, annotate categories that aren't found in categoryBrackets with [cat ], where cat is the new category
-   - showTones: set to true to display whatever tones are in the tree
-	 (only useful if the tree has been annotated with tones, as by the function addJapaneseTones in annotate_tones.js)
+   - showTones: set to addJapaneseTones, addIrishTones_Elfner, etc. to annotate the tree with appropriate tones and show them in its parenthesization
 */
 function parenthesizeTree(tree, options){
 	var parTree = [];

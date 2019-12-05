@@ -1,4 +1,21 @@
-/* Assign a violation for every node in sTree of category sCat
+/* For the specified lexical item(s), which are assumed to  be clitics (category is not checked),
+*  assign a violation for every terminal that intervenes between the left edge of the tree
+*  and the lexical item. 
+*/
+
+function alignLeftMorpheme(stree, ptree, clitic){
+    if(ptree.cat !== "i" && ptree.cat !== 'iota'){
+        console.warn("You are calling alignLeftClitic on a tree that is not rooted in i");
+    }
+    clitic = clitic.split(' ');
+    var leaves = getLeaves(ptree);
+    var cliticPos = leaves.findIndex(function(element){return clitic.indexOf(element.id) >= 0;});
+    if(cliticPos < 0){
+        console.warn("The specified clitic "+clitic+" was not found in this tree");
+        cliticPos = 0;
+    }
+    return cliticPos;
+}/* Assign a violation for every node in sTree of category sCat
 whose d edge is not aligned with the d edge of a node in pTree 
 of the prosodic category corresponding to s
 
@@ -1227,6 +1244,33 @@ function equalSistersAdj(s, parent, c){
 		}
 	}
 	return vCount;
+}
+
+// After Ito & Mester 2017
+// Assign a violation for adjacent sisters whose categories don't match
+function equalSisters2(s, parent, c){
+	var vCount = 0;
+	if(parent.children && parent.children.length)
+	//pTree is non-terminal
+	{
+		logreport.debug("\tchecking equality of children of "+parent.id);
+		for(var i=0; i < parent.children.length; i++){
+			var child = parent.children[i];
+			if(i<parent.children.length-1)
+			{
+				var sister = parent.children[i+1];
+				if(pCat.isLower(child.cat, sister.cat) && !isMinimal(sister))
+				{
+					vCount++;
+				}
+				else if(pCat.isLower(sister.cat, child.cat) && !isMinimal(child)){
+					vCount++;
+				}
+			}
+			vCount += equalSisters2(s, child, c);
+		}
+	}
+	return vCount;
 }/* Equal Strength Boundaries Constraints
  * as proposed by Nick Kalivoda, August 2019:
  * Assign violations if a phonological terminal is at the left/right edge of a
@@ -1634,20 +1678,30 @@ function matchPS(sTree, pParent, pCat, options)
 
 //TODO: what about null syntactic terminals?? these need to be filtered out of the syntactic input?? write this function later.
 
-function matchSP(sParent, pTree, sCat, options)
-/*Assign a violation for every syntactic node of type sCat in sParent that
+/* matchSP = Match(Syntax, Prosody):
+* Assign a violation for every syntactic node of type sCat in sParent that
 * doesn't have a  corresponding prosodic node in pTree, where "corresponding"
 * is defined as: dominates all and only the same terminals, and has the
 * corresponding prosodic category.
 * By default, assumes no null syntactic terminals.
-* options = {requireLexical: true/false, requireOvertHead: true/false}
-* For non-lexical XPs to be ignored, they should be given an attribute func: true.
-* For silently-headed XPs to be ignored, they should be given an attribute silentHead: true
+* Options (all boolean):
+* requireLexical: To ignore non-lexical XPs give them an attribute func: true.
+*	requireOvertHead: To ignore silently-headed XPs, give them an attribute silentHead: true
+*	maxSyntax: If true, ignore non-maximal syntactic nodes (nodes of category c that are
+*				dominated by another node of category c)
+*	minSyntax: If true, ignore non-minimal syntactic nodes (nodes of category c that dominate
+*				another node of category c)
+*	nonMaxSyntax: If true, only look at non-maximal syntactic nodes
+*	nonMinSyntax: If true, only look at non-minimal syntactic nodes
+*	maxProsody: If true, the prosodic match needs to be maximal. Passed to hasMatch.
+*	minProsody: If true, the prosodic match needs to be minimal. Passed to hasMatch.
+*	nonMaxProsody: If true, the prosodic match must be non-maximal. Passed to hasMatch.
+*	nonMinProsody: If true, the prosodic match must be non-minimal. Passed to hasMatch.
 */
+function matchSP(sParent, pTree, sCat, options)
 {
 	options = options || {};
 	markMinMax(sParent);
-
 	if(sParent.cat === sCat)
 		logreport.debug("\tSeeking match for "+sParent.id + " in tree rooted in "+pTree.id);
 	var vcount = 0;
@@ -1678,7 +1732,7 @@ function matchSP(sParent, pTree, sCat, options)
 			vcount += matchSP(sChild, pTree, sCat, options);
 		}
 	}
-
+	//console.log("in matchSP");
 	return vcount;
 }
 
@@ -1760,11 +1814,25 @@ function matchMaxSP(sTree, pTree, sCat){
  * violation if no match is found.
  * ex. Match a maximal xp with any phi.
  */
+
 function matchMaxSyntax(sTree, pTree, sCat, options){
-   options = options || {};
-   options.maxSyntax = true;
-	 return matchSP(sTree, pTree, sCat, options);
+	options = options || {};
+	options.maxSyntax = true;
+	return matchSP(sTree, pTree, sCat, options);
  }
+
+ //Match all non-minimal syntactic nodes
+function matchNonMinSyntax(sTree, pTree, sCat, options){
+	options = options || {};
+	options.nonMinSyntax = true;
+	return matchSP(sTree, pTree, sCat, options);
+}
+
+//Match for custom match options
+function matchCustom(sTree, pTree, sCat, options){
+	options = options || {};
+	return matchSP(sTree, pTree, sCat, options);
+}
 
 //Match Maximal P --> S
 //Switch inputs for PS matching:
@@ -1804,14 +1872,20 @@ function matchMinPS(s, ptree, cat, options) {
 }
 function noShift(stree, ptree, cat){
     //Get lists of terminals
-    
+
     var sleaves = getLeaves(stree);
     var pleaves = getLeaves(ptree);
     var sorder = new Array(sleaves.length);
     var porder = new Array(pleaves.length);
 
-    if(sleaves.length != pleaves.length){
+    try {
+      if(sleaves.length != pleaves.length) {
         throw new Error("NoShift problem: The stree and ptree have different numbers of terminals!");
+      }
+    }
+    catch(err) {
+      // Display error message in alert if error is thrown
+      console.warn(err);
     }
 
     for(var i in sleaves){
@@ -1850,7 +1924,8 @@ function noShift(stree, ptree, cat){
         j++;
     }
     return shiftFound ? 1 : 0;
-}/****************
+}
+/****************
 * Function that implements Nonrecursivity, version 1:
 * "Assign a violation for every node of category x immediately dominated
 * by another node of category x"
@@ -2209,14 +2284,14 @@ function strongStart(s, ptree, cat){
 	return vcount;
 }
 
-/* Assign a violation for every node of category cat whose leftmost daughter constituent
-*  and is lower in the prosodic hierarchy than its sister constituent immediately to its right.
+/* Assign a violation for every node whose leftmost daughter constituent
+*  is lower in the prosodic hierarchy than its sister constituent immediately to its right.
 *  Sensitive to whether nodes are (non)minimal: phi min is lower than phi non-min
 *  Not sensitive to the category of the parent.
 *  (Van Handel's strongStart from SPOT2 2019)
 */
 
-function strongStart_Elfner_SubCat(s, ptree, cat){
+function strongStart_SubCat(s, ptree, cat){
 	//base case: ptree is a leaf or only has one child
 	if(!ptree.children){
 		return 0;
@@ -2241,7 +2316,7 @@ function strongStart_Elfner_SubCat(s, ptree, cat){
 	// Recurse
 	for(var i=0; i<ptree.children.length; i++){
 		child = ptree.children[i];
-		vcount += strongStart_Elfner_SubCat(s, child, cat);
+		vcount += strongStart_SubCat(s, child, cat);
 	}
 	
 	return vcount;

@@ -628,9 +628,9 @@ function binMaxBranches(s, ptree, cat){
 	return vcount;
 }
 
-/* Category-sensitive branch-counting constraint 
+/* Category-sensitive branch-counting constraint
 * (first proposed by Kalivoda 2019 in "New Analysis of Irish Syntax-Prosody", ms.)
-* Assign a violation for every node of category cat that immediately dominates 
+* Assign a violation for every node of category cat that immediately dominates
 * more than 2 children of category cat-1
 */
 function binMaxBrCatSensitive(s, ptree, cat){
@@ -836,6 +836,24 @@ function binMin2WordsGradient(s, ptree, cat){
 		}
 		for(var i = 0; i<ptree.children.length; i++){
 			vcount += binMin2WordsGradient(s, ptree.children[i], cat);
+		}
+	}
+	return vcount;
+}
+
+function binMinLeaves_requireMaximal(s, ptree, c){
+	markMinMax(ptree);
+	var vcount = 0;
+	//the category we are looking for:
+	var target = pCat.nextLower(c);
+	//pCat.nextLower defined in prosdic hierarchy.js
+	if(ptree.children && ptree.children.length){
+		var targetDesc = getDescendentsOfCat(ptree, target);
+		if(ptree.cat === c && targetDesc.length < 2 && ptree.isMax){
+			vcount ++;
+		}
+		for(var i = 0; i < ptree.children.length; i++){
+			vcount += binMinLeaves_requireMaximal(s, ptree.children[i], c);
 		}
 	}
 	return vcount;
@@ -1784,16 +1802,23 @@ function hasMatch(sNode, pTree, options)
 
 /*Various flavors of Match to be called more easily by makeTableau*/
 
-function matchSP_LexicalHead(stree, ptree, cat){
-	return matchSP(stree, ptree, cat, {requireLexical:true});
+function matchSP_LexicalHead(stree, ptree, cat, options){
+	options = options || {};
+	options.requireLexical = true;
+	return matchSP(stree, ptree, cat, options);
 }
 
-function matchSP_OvertHead(stree, ptree, cat){
-	return matchSP(stree, ptree, cat, {requireOvertHead:true});
+function matchSP_OvertHead(stree, ptree, cat, options){
+	options = options || {};
+	options.requireOvertHead = true;
+	return matchSP(stree, ptree, cat, options);
 }
 
-function matchSP_OvertLexicalHead(stree, ptree, cat){
-	return matchSP(stree, ptree, cat, {requireOvertHead: true, requireLexical:true});
+function matchSP_OvertLexicalHead(stree, ptree, cat, options){
+	options = options || {};
+	options.requireLexical = true;
+	options.requireLexical = true;
+	return matchSP(stree, ptree, cat, options);
 }
 
 
@@ -1805,8 +1830,11 @@ function matchSP_OvertLexicalHead(stree, ptree, cat){
  * ex. Match a maximal xp with a maximal phi.
  */
 
-function matchMaxSP(sTree, pTree, sCat){
-	return matchSP(sTree, pTree, sCat, {maxSyntax: true, maxProsody: true});
+function matchMaxSP(sTree, pTree, sCat, options){
+	options = options || {};
+	options.maxSyntax = true;
+	options.maxProsody = true;
+	return matchSP(sTree, pTree, sCat, options);
 }
 
 /* Match-SP(scat-max, pcat). Same as matchMaxSP, except matching prosodic node
@@ -1836,13 +1864,18 @@ function matchCustom(sTree, pTree, sCat, options){
 
 //Match Maximal P --> S
 //Switch inputs for PS matching:
-function matchMaxPS(sTree, pTree, pCat){
-	return matchPS(pTree, sTree, pCat, {maxSyntax: true, maxProsody: true});
+function matchMaxPS(sTree, pTree, pCat, options){
+	options = options || {};
+	options.maxSyntax = true;
+	options.maxProsody = true;
+	return matchPS(pTree, sTree, pCat, options);
 }
 
 //Match P --> S version of matchMaxSyntax. See comment there for explanation
-function matchMaxProsody(sTree, pTree, pCat){
-	return matchMaxSyntax(pTree, sTree, pCat, {maxSyntax: true});
+function matchMaxProsody(sTree, pTree, pCat, options){
+	options = options || {};
+	options.maxSyntax = true;
+	return matchMaxSyntax(pTree, sTree, pCat, options);
 }
 
 //Match Min constraints
@@ -2248,7 +2281,7 @@ function strongStart_Elfner(s, ptree, k){
 }
 
 /* Assign a violation for every node of category cat whose leftmost daughter constituent
-*  and is lower in the prosodic hierarchy than its sister constituent immediately to its right.
+*  is lower in the prosodic hierarchy than its sister constituent immediately to its right.
 *  (intuitive strong start, according to the intuition of Bellik & Kalivoda 2019)
 */
 

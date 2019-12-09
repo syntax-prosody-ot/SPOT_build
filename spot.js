@@ -628,9 +628,9 @@ function binMaxBranches(s, ptree, cat){
 	return vcount;
 }
 
-/* Category-sensitive branch-counting constraint 
+/* Category-sensitive branch-counting constraint
 * (first proposed by Kalivoda 2019 in "New Analysis of Irish Syntax-Prosody", ms.)
-* Assign a violation for every node of category cat that immediately dominates 
+* Assign a violation for every node of category cat that immediately dominates
 * more than 2 children of category cat-1
 */
 function binMaxBrCatSensitive(s, ptree, cat){
@@ -836,6 +836,24 @@ function binMin2WordsGradient(s, ptree, cat){
 		}
 		for(var i = 0; i<ptree.children.length; i++){
 			vcount += binMin2WordsGradient(s, ptree.children[i], cat);
+		}
+	}
+	return vcount;
+}
+
+function binMinLeaves_requireMaximal(s, ptree, c){
+	markMinMax(ptree);
+	var vcount = 0;
+	//the category we are looking for:
+	var target = pCat.nextLower(c);
+	//pCat.nextLower defined in prosdic hierarchy.js
+	if(ptree.children && ptree.children.length){
+		var targetDesc = getDescendentsOfCat(ptree, target);
+		if(ptree.cat === c && targetDesc.length < 2 && ptree.isMax){
+			vcount ++;
+		}
+		for(var i = 0; i < ptree.children.length; i++){
+			vcount += binMinLeaves_requireMaximal(s, ptree.children[i], c);
 		}
 	}
 	return vcount;
@@ -1784,16 +1802,23 @@ function hasMatch(sNode, pTree, options)
 
 /*Various flavors of Match to be called more easily by makeTableau*/
 
-function matchSP_LexicalHead(stree, ptree, cat){
-	return matchSP(stree, ptree, cat, {requireLexical:true});
+function matchSP_LexicalHead(stree, ptree, cat, options){
+	options = options || {};
+	options.requireLexical = true;
+	return matchSP(stree, ptree, cat, options);
 }
 
-function matchSP_OvertHead(stree, ptree, cat){
-	return matchSP(stree, ptree, cat, {requireOvertHead:true});
+function matchSP_OvertHead(stree, ptree, cat, options){
+	options = options || {};
+	options.requireOvertHead = true;
+	return matchSP(stree, ptree, cat, options);
 }
 
-function matchSP_OvertLexicalHead(stree, ptree, cat){
-	return matchSP(stree, ptree, cat, {requireOvertHead: true, requireLexical:true});
+function matchSP_OvertLexicalHead(stree, ptree, cat, options){
+	options = options || {};
+	options.requireLexical = true;
+	options.requireLexical = true;
+	return matchSP(stree, ptree, cat, options);
 }
 
 
@@ -1805,8 +1830,11 @@ function matchSP_OvertLexicalHead(stree, ptree, cat){
  * ex. Match a maximal xp with a maximal phi.
  */
 
-function matchMaxSP(sTree, pTree, sCat){
-	return matchSP(sTree, pTree, sCat, {maxSyntax: true, maxProsody: true});
+function matchMaxSP(sTree, pTree, sCat, options){
+	options = options || {};
+	options.maxSyntax = true;
+	options.maxProsody = true;
+	return matchSP(sTree, pTree, sCat, options);
 }
 
 /* Match-SP(scat-max, pcat). Same as matchMaxSP, except matching prosodic node
@@ -1836,13 +1864,18 @@ function matchCustom(sTree, pTree, sCat, options){
 
 //Match Maximal P --> S
 //Switch inputs for PS matching:
-function matchMaxPS(sTree, pTree, pCat){
-	return matchPS(pTree, sTree, pCat, {maxSyntax: true, maxProsody: true});
+function matchMaxPS(sTree, pTree, pCat, options){
+	options = options || {};
+	options.maxSyntax = true;
+	options.maxProsody = true;
+	return matchPS(pTree, sTree, pCat, options);
 }
 
 //Match P --> S version of matchMaxSyntax. See comment there for explanation
-function matchMaxProsody(sTree, pTree, pCat){
-	return matchMaxSyntax(pTree, sTree, pCat, {maxSyntax: true});
+function matchMaxProsody(sTree, pTree, pCat, options){
+	options = options || {};
+	options.maxSyntax = true;
+	return matchMaxSyntax(pTree, sTree, pCat, options);
 }
 
 //Match Min constraints
@@ -2248,7 +2281,7 @@ function strongStart_Elfner(s, ptree, k){
 }
 
 /* Assign a violation for every node of category cat whose leftmost daughter constituent
-*  and is lower in the prosodic hierarchy than its sister constituent immediately to its right.
+*  is lower in the prosodic hierarchy than its sister constituent immediately to its right.
 *  (intuitive strong start, according to the intuition of Bellik & Kalivoda 2019)
 */
 
@@ -3331,6 +3364,11 @@ function built_in_con(input){
             if(cat_boxes[z].value === input[i].cat){
               cat_boxes[z].checked =  true;
             }
+            //for dealing with text input (currently only from alignLeftMorpheme)
+            else if(cat_boxes[z].type==="text"){
+              cat_boxes[z].checked =  true;
+              cat_boxes[z].value = input[i].cat;
+            }
             // otherwise clear out category if this constraint has not been used before
             else if(!regex.test(usedCons)){
               cat_boxes[z].checked = false;
@@ -3339,19 +3377,25 @@ function built_in_con(input){
         }
       }
     }
-    //handeling constraint options, uses last constraint options object specified
+    //handling constraint options, uses last constraint options object specified
     /* we only need to do this once per input and we should probably run it after
      * all of the constraints and categories have been checked */
     if(input[i].options && document.getElementsByName("option-"+input[i].name) && document.getElementsByName("option-"+input[i].name).length){
       var optionBoxes = document.getElementsByName("option-"+input[i].name);
-      //iterate over option checkboxes corresponding to this input
-      for(var x in optionBoxes){
-        if(input[i].options[optionBoxes[x].value]){
-          optionBoxes[x].checked = true;
+      if(optionBoxes.length){
+        //iterate over option checkboxes corresponding to this input
+        for(var x in optionBoxes){
+          if(input[i].options[optionBoxes[x].value]){
+            optionBoxes[x].checked = true;
+          }
+          else{
+            optionBoxes[x].checked = false;
+          }
         }
-        else{
-          optionBoxes[x].checked = false;
-        }
+      }
+      //if there is only one option for this constraint:
+      else{
+        optionBoxes.checked = true;
       }
     }
     //record that this constraint has already been used so other inputs don't overwrite it
@@ -3375,6 +3419,7 @@ function my_built_in_analysis(myGEN, showTones, myTrees, myCon){
   //Step 0: clear the webpage
   clearAnalysis();
   //Step 1: GEN options
+  // To move clitics: value should be "cliticMovement"
   var genBoxes = document.getElementsByName("genOptions");
   for(var box in genBoxes){
     var optVal = myGEN[genBoxes[box].value];
@@ -3485,7 +3530,7 @@ function built_in_Kinyambo(){
 function built_in_Japanese_IM2017(){
   var gen = {obeysHeadedness: true, obeysExhaustivity: true};
 
-  var con = [{name: 'matchMaxSyntax', cat:'xp'}, {name:'matchPS', cat:'phi'}, {name: 'matchSP', cat:'xp'}, {name: 'binMinBranches', cat:'phi'}, {name:'binMaxBranches', cat:'phi'}, {name:'binMaxLeaves', cat:'phi'}, {name:'equalSistersAdj', cat:'phi'}, {name: 'equalSisters2', cat:'phi'}, {name: 'accentAsHead', cat: ''}, {name: 'noLapseL', cat: ''}];
+  var con = [{name: 'matchMaxSP', cat:'xp'}, {name:'matchPS', cat:'phi'}, {name: 'matchSP', cat:'xp'}, {name: 'binMinBranches', cat:'phi'}, {name:'binMaxBranches', cat:'phi'}, {name:'binMaxLeaves', cat:'phi'}, {name:'equalSistersAdj', cat:'phi'}, {name: 'equalSisters2', cat:'phi'}, {name: 'accentAsHead', cat: ''}, {name: 'noLapseL', cat: ''}];
 
   var jtrees = getAccentTrees();
 
@@ -3493,22 +3538,54 @@ function built_in_Japanese_IM2017(){
 
 }
 
-/* Nick VH, please fill in your system's info here
+//cf. analysis_html_files/abstractMatchAnalysis.html. Japanese rebracketing project, Kalivoda 2019.
+function built_in_Japanese_rebracketing(n){
+  var gen = {obeysExhaustivity: true, requireRecWrapper: true};
+  var pwfcs = [{name: 'binMinBranches', cat:'phi'}, {name:'binMaxBranches', cat:'phi'}, {name:'binMaxLeaves', cat:'phi'}];
+  var mapping = [{name: 'matchSP', cat:'xp'}, {name:'matchPS', cat:'phi'}, {name: 'alignRight', cat:'xp'}, {name: 'alignLeft', cat:'xp'}, {name: 'alignRightPS', cat:'phi'}, {name: 'alignLeftPS', cat:'phi'}];
+  var jtrees = [tree_3w_1, tree_3w_2, tree_4w_1, tree_4w_2, tree_4w_3, tree_4w_4, tree_4w_5];
+  var selected_mapping;
+  switch(n){
+    case 1: selected_mapping = mapping.slice(0,2); break;
+    case 2: selected_mapping = mapping.slice(2); break;
+    case 3: selected_mapping = mapping.slice(2,4).concat([mapping[0]]); break;
+    case 4: selected_mapping = mapping.slice(2,4).concat([mapping[1]]); break;
+    case 5: selected_mapping = mapping.slice(4).concat([mapping[0]]); break;
+    case 6: selected_mapping = mapping.slice(4).concat([mapping[1]]); break;
+    default: selected_mapping = mapping;
+  }
+  var con = pwfcs.concat(selected_mapping);
+  my_built_in_analysis(gen, false, jtrees, con);
+}
+
+
+function built_in_Japanese_balSis(){
+  var gen = {obeysExhaustivity: true, requireRecWrapper: true};
+
+  var con = [{name:'matchPS', cat:'phi'}, {name: 'matchSP', cat:'xp'}, {name: 'binMinBranches', cat:'phi'}, {name:'binMaxBranches', cat:'phi'}, {name:'balancedSistersAdj', cat:'phi'}, {name: 'equalSisters2', cat:'phi'}, {name: 'accentAsHead', cat: ''}, {name: 'noLapseL', cat: ''}];
+  var jtrees = getAccentTrees();
+
+  my_built_in_analysis(gen, 'addJapaneseTones', jtrees, con);
+
+}
+
+
+/* Nick Van Handel's Italian analysis as presented at ICPP2019
 */
 function built_in_Italian_NVH(){
-  var gen = {};
-  var con = [];
-  var trees = [];
+  var gen = {obeysHeadedness: true, obeysExhaustivity: true};
+  var con = [{name: "matchSP", cat: "xp", options: {requireOvertHead: true}}, {name: "matchMaxSP", cat: "xp", options: {requireOvertHead: true}}, {name: "binMinLeaves", cat: "phi"}, {name: "binMaxLeaves", cat: "phi"}, {name: "binMinLeaves_requireMaximal", cat: "phi"}, {name: "strongStart_SubCat"}];
+  var trees = [italian_adj_noun, italian_noun_adj, italian_noun_adv_adj, italian_ditrans, italian_subj_verb, italian_noun_pp, italian_verb_do_1, italian_verb_do_2, italian_verb_do_3];
   my_built_in_analysis(gen, false, trees, con);
 }
 
-/* Richard, please fill in your system's info here
+/* Richard Bibbs's Chamorro clitic analysis as presented at ICPP2019
 */
 function built_in_Chamorro_RB(){
-  var gen = {};
-  var con = [];
-  var trees = [];
-  my_built_in_analysis(gen, false, trees, con);
+  var gen = {obeysHeadedness: true, obeysNonrecursivity: false, obeysExhaustivity: ['i'], cliticMovement: true};
+  var con = [{name: 'matchSP', cat:'xp'}, {name: 'matchPS', cat:'phi'}, {name: 'equalSistersAdj', cat:'phi'}, {name: 'binMaxBranches', cat:'i'}, {name: 'strongStart_Elfner', cat:'syll'}, {name: 'alignLeftMorpheme', cat:"clitic gui' yu' hit hao"}];
+  var chamorrotrees = chamorro_clitic_trees;
+  my_built_in_analysis(gen, false, chamorrotrees, con);
 }
 
 function built_in(analysis) {
@@ -3521,6 +3598,30 @@ function built_in(analysis) {
   if(analysis === "ito&mester2017"){
     built_in_Japanese_IM2017();
   }
+  //Systems for Nick Kalivoda's study of abstract mapping, using Japanese rebracketing
+  if(analysis === "japanese_rebracketing_1"){
+    built_in_Japanese_rebracketing(1);
+  }
+  if(analysis === "japanese_rebracketing_2"){
+    built_in_Japanese_rebracketing(2);
+  }
+  if(analysis === "japanese_rebracketing_3"){
+    built_in_Japanese_rebracketing(3);
+  }
+  if(analysis === "japanese_rebracketing_4"){
+    built_in_Japanese_rebracketing(4);
+  }
+  if(analysis === "japanese_rebracketing_5"){
+    built_in_Japanese_rebracketing(5);
+  }
+  if(analysis === "japanese_rebracketing_6"){
+    built_in_Japanese_rebracketing(6);
+  }
+
+  if(analysis === "japanese_BK_2019"){
+    built_in_Japanese_balSis();
+  }
+
   if(analysis=== "italian"){
     built_in_Italian_NVH();
   }
@@ -3595,10 +3696,17 @@ function record_analysis(){
     if(uCon[i].checked){
       if(spotForm['category-'+cName]){
         var uCategories = spotForm['category-'+cName]; //categories for this constraint
-        for(var x = 0; x<uCategories.length; x++){ //iterate over categories
-          var cat = uCategories[x];
-          if(cat.checked){
-            analysis.myCon.push({name: cName, cat: cat.value}); //add to con
+        //handeling alignLeftMorpheme: (category is actually a user defined string)
+        if(!uCategories.length){
+          analysis.myCon.push({name: cName, cat: uCategories.value});
+        }
+        //basically every other case: (category is actually a category)
+        else{
+          for(var x = 0; x<uCategories.length; x++){ //iterate over categories
+            var cat = uCategories[x];
+            if(cat.checked){
+              analysis.myCon.push({name: cName, cat: cat.value}); //add to con
+            }
           }
         }
       }
@@ -3608,18 +3716,23 @@ function record_analysis(){
       }
     }
   }
-  //matchOptions
-  var matchReg = /match/;
+  //optionable constraints:
   //iterate over all the selected constraints
   for(var i = 0; i<analysis.myCon.length; i++){
-    var matchCon = analysis.myCon[i];
-    //if the constraint name has "match" in it
-    if(matchReg.test(matchCon.name)){
-      matchCon.options = {};
-      var matchOptions = spotForm["option-"+matchCon.name];
-      //iterate over the options for this match constraint
-      for(var x = 0; x<matchOptions.length; x++){
-        matchCon.options[matchOptions[x].value] = matchOptions[x].checked;
+    var optionableCon = analysis.myCon[i];
+    //if the constraint has options
+    if(spotForm["option-"+optionableCon.name]){
+      optionableCon.options = {};
+      var conOptions = spotForm["option-"+optionableCon.name];
+      if(conOptions.length){
+        //iterate over the options for this match constraint
+        for(var x = 0; x<conOptions.length; x++){
+          optionableCon.options[conOptions[x].value] = conOptions[x].checked;
+        }
+      }
+      else{
+        //when there is only one option
+        optionableCon.options[conOptions.value] = conOptions.checked;
       }
     }
   }
@@ -4454,8 +4567,6 @@ window.addEventListener('load', function(){
 	});
 
 	spotForm.onsubmit=function(e){
-
-		console.log("submit");
 		if (e.preventDefault) e.preventDefault();
 
 		//Build a list of checked constraints.
@@ -4479,15 +4590,22 @@ window.addEventListener('load', function(){
 							if(spotForm['option-'+constraint]){
 								var constraintOptionSet = spotForm['option-'+constraint];
 								var options = {};
-								for(var k=0; k<constraintOptionSet.length; k++){
-									var optionBox = constraintOptionSet[k];
-									//If lexical or overtly headed is checked, then option is true
-									if(optionBox.checked) {
-										options[optionBox.value] = true;
+								if(constraintOptionSet.length){
+									for(var k=0; k<constraintOptionSet.length; k++){
+										var optionBox = constraintOptionSet[k];
+										//If lexical or overtly headed is checked, then option is true
+										if(optionBox.checked) {
+											options[optionBox.value] = true;
+										}
+										//If option is in a select, not a checkbox, and the option is not "any", then option is true
+										if(optionBox.checked === undefined && optionBox.value !== 'any') {
+											options[optionBox.value] = true;
+										}
 									}
-									//If option is in a select, not a checkbox, and the option is not "any", then option is true
-									if(optionBox.checked === undefined && optionBox.value !== 'any') {
-										options[optionBox.value] = true;
+								}
+								else{ //constraint only has one possible option:
+									if(constraintOptionSet.checked){
+										options[constraintOptionSet.value] = true;
 									}
 								}
 								var strOptions = JSON.stringify(options);
@@ -4554,7 +4672,7 @@ window.addEventListener('load', function(){
 				throw terminalCategoryError;
 			}
 		}
-		
+
 
 		var tableauOptions = {
 			showTones: false,  //true iff tones are selected
@@ -4568,6 +4686,7 @@ window.addEventListener('load', function(){
 			//console.log(genOptions);
 		}
 
+
 		for(var i = 0; i < spotForm.hideCategory.length; i++){
 			var hiddenCat = spotForm.hideCategory[i];
 			if(hiddenCat.checked){
@@ -4578,23 +4697,26 @@ window.addEventListener('load', function(){
 		var resultsConCl = document.getElementById("results-container").classList;
 		resultsConCl.add('show-tableau');
 
+
 		var csvSegs = [];
 		for (var i = 0; i < sTrees.length; i++) {
 			var sTree = sTrees[i];
+			//console.log(pString.split(" ").length >= 6)
 			//warn user about using more than six terminals
-			if(getLeaves(sTree).length >= 6){
+			
+
+			//warn user about possibly excessive numbers of candidates
+			if (genOptions['cliticMovement'] && (!genOptions['noUnary'] && (getLeaves(sTree).length >= 5 || pString.split(" ").length >= 5))
+											 || (genOptions['noUnary'] && (getLeaves(sTree).length >= 7 || pString.split(" ").length >= 7))){
+				if(!confirm("You have selected GEN settings that allow clitic reordering, and included a sentence of ".concat( pString.split(" ").length.toString()," terminals. This GEN may yield more than 10K candidates. To reduce the number of candidates, consider enforcing non-recursivity, exhaustivity, and/or branchingness for intermediate prosodic nodes. Do you wish to proceed with these settings?"))){
+					throw new Error("clitic movement with too many terminals");
+				}
+			} 
+			else if(getLeaves(sTree).length >= 6 || pString.split(" ").length >= 6){
 				if(!confirm("Inputs of more than six terminals may run slowly and even freeze your browser, depending on the selected GEN options. Do you wish to continue?")){
 					throw new Error("Tried to run gen with more than six terminals");
 				}
 			}
-
-			//warn user about clitic movement
-			if (genOptions['cliticMovement'] && (!genOptions['noUnary'] && getLeaves(sTree).length >= 5) 
-											 || (genOptions['noUnary'] && getLeaves(sTree).length >= 7)){
-				if(!confirm("You have selected GEN settings that allow clitic reordering, and included a sentence of (X) terminals. This GEN may yield more than 10K candidates. To reduce the number of candidates, consider enforcing non-recursivity, exhaustivity, and/or branchingness for intermediate prosodic nodes. Do you wish to proceed with these settings?")){
-					throw new Error("");
-				}
-			} 
 			
 			if (genOptions['cliticMovement']){
 				var candidateSet = GENwithCliticMovement(sTree, pString, genOptions);
@@ -4741,6 +4863,7 @@ window.addEventListener('load', function(){
 		var nodeId = idPieces[1];
 		var isCat = idPieces[0] === 'catInput';
 		treeUIsTreeMap[treeIndex].nodeMap[nodeId][isCat ? 'cat' : 'id'] = target.value;
+		document.getElementById('doneMessage').style.display = 'none';
 	});
 
 

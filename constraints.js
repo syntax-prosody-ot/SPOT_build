@@ -1184,6 +1184,33 @@ function splitNMCmin(sTree,pTree)
 * TODO does the degree of prosodic inequality make a difference to the severity of the violation?
 *********************/
 
+/* Maximally categorical definition of equalSisters:
+*  Assign one violation for every set of sisters that do not all have the same category.
+*  That is, all of the following would have one violation: (a (b)(c)), (a b (c)), ((a) b c)
+*/
+function eqSis(s, ptree, cat){
+	var vcount = 0;
+	//base case: parent has category cat and is non-terminal
+	if(ptree.cat === cat && ptree.children && ptree.children.length){
+		var cat1 = ptree.children[0].cat;
+		for(var i=1; i<ptree.children.length; i++){
+			var child = ptree.children[i];
+			if(child.cat != cat1){
+				vcount++;
+				break;
+			}
+		}
+	}
+
+	//recursive case
+	if(ptree.children && ptree.children.length){
+		for(var i=0; i<ptree.children.length; i++){
+			vcount += eqSis(s, ptree.children[i], cat);
+		}
+	}
+	return vcount;
+}
+
 /* EqualSisters: looks at the category of the first sister, and assigns a violation 
 * for every one of its sisters that doesn't share its category
 * A definition probably no one wants but which is not ruled out by the "definitions" that appear in papers
@@ -2281,8 +2308,10 @@ function strongStart_Elfner(s, ptree, k){
 }
 
 /* Assign a violation for every node of category cat whose leftmost daughter constituent
-*  is lower in the prosodic hierarchy than its sister constituent immediately to its right.
-*  (intuitive strong start, according to the intuition of Bellik & Kalivoda 2019)
+*  is lower in the prosodic hierarchy than any sister constituent to its right.
+*  (intuitive strong start, according to the intuition of Bellik & Kalivoda 2019) 
+*  Updated Jan 2020 to penalize structures like (a b (c)) as well as (a (b c)). 
+*  The previous definition only looked at the first and second sisters.
 */
 
 function strongStart(s, ptree, cat){
@@ -2296,16 +2325,17 @@ function strongStart(s, ptree, cat){
 	
 	if(ptree.cat === cat && ptree.children.length>1){		
 		var leftmostCat = ptree.children[0].cat;
-		var sisterCat = ptree.children[1].cat;
-		
-		//console.log(leftmostCat);
-		//console.log(sisterCat);
-		//console.log(pCat.isLower(leftmostCat, sisterCat));
+		for(var i = 1; i<ptree.children.length; i++){
+			var sisterCat = ptree.children[i].cat;
+			console.log(leftmostCat, sisterCat, pCat.isLower(leftmostCat, sisterCat));
 
-		if(pCat.isLower(leftmostCat, sisterCat))
-		{
-			vcount++;
+			if(pCat.isLower(leftmostCat, sisterCat))
+			{
+				vcount++;
+			}
 		}
+		
+
 	}
 	
 	// Recurse

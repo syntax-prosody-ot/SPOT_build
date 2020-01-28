@@ -1184,6 +1184,33 @@ function splitNMCmin(sTree,pTree)
 * TODO does the degree of prosodic inequality make a difference to the severity of the violation?
 *********************/
 
+/* Maximally categorical definition of equalSisters:
+*  Assign one violation for every set of sisters that do not all have the same category.
+*  That is, all of the following would have one violation: (a (b)(c)), (a b (c)), ((a) b c)
+*/
+function eqSis(s, ptree, cat){
+	var vcount = 0;
+	//base case: parent has category cat and is non-terminal
+	if(ptree.cat === cat && ptree.children && ptree.children.length){
+		var cat1 = ptree.children[0].cat;
+		for(var i=1; i<ptree.children.length; i++){
+			var child = ptree.children[i];
+			if(child.cat != cat1){
+				vcount++;
+				break;
+			}
+		}
+	}
+
+	//recursive case
+	if(ptree.children && ptree.children.length){
+		for(var i=0; i<ptree.children.length; i++){
+			vcount += eqSis(s, ptree.children[i], cat);
+		}
+	}
+	return vcount;
+}
+
 /* EqualSisters: looks at the category of the first sister, and assigns a violation 
 * for every one of its sisters that doesn't share its category
 * A definition probably no one wants but which is not ruled out by the "definitions" that appear in papers
@@ -2281,8 +2308,10 @@ function strongStart_Elfner(s, ptree, k){
 }
 
 /* Assign a violation for every node of category cat whose leftmost daughter constituent
-*  is lower in the prosodic hierarchy than its sister constituent immediately to its right.
-*  (intuitive strong start, according to the intuition of Bellik & Kalivoda 2019)
+*  is lower in the prosodic hierarchy than any sister constituent to its right.
+*  (intuitive strong start, according to the intuition of Bellik & Kalivoda 2019) 
+*  Updated Jan 2020 to penalize structures like (a b (c)) as well as (a (b c)). 
+*  The previous definition only looked at the first and second sisters.
 */
 
 function strongStart(s, ptree, cat){
@@ -2296,16 +2325,17 @@ function strongStart(s, ptree, cat){
 	
 	if(ptree.cat === cat && ptree.children.length>1){		
 		var leftmostCat = ptree.children[0].cat;
-		var sisterCat = ptree.children[1].cat;
-		
-		//console.log(leftmostCat);
-		//console.log(sisterCat);
-		//console.log(pCat.isLower(leftmostCat, sisterCat));
+		for(var i = 1; i<ptree.children.length; i++){
+			var sisterCat = ptree.children[i].cat;
+			console.log(leftmostCat, sisterCat, pCat.isLower(leftmostCat, sisterCat));
 
-		if(pCat.isLower(leftmostCat, sisterCat))
-		{
-			vcount++;
+			if(pCat.isLower(leftmostCat, sisterCat))
+			{
+				vcount++;
+			}
 		}
+		
+
 	}
 	
 	// Recurse
@@ -3562,7 +3592,7 @@ function built_in_Japanese_rebracketing(n){
 function built_in_Japanese_balSis(){
   var gen = {obeysExhaustivity: true, requireRecWrapper: true};
 
-  var con = [{name:'matchPS', cat:'phi'}, {name: 'matchSP', cat:'xp'}, {name: 'binMinBranches', cat:'phi'}, {name:'binMaxBranches', cat:'phi'}, {name:'balancedSistersAdj', cat:'phi'}, {name: 'equalSisters2', cat:'phi'}, {name: 'accentAsHead', cat: ''}, {name: 'noLapseL', cat: ''}];
+  var con = [{name:'matchPS', cat:'phi'}, {name: 'matchSP', cat:'xp'}, {name: 'binMinBranches', cat:'phi'}, {name:'binMaxBranches', cat:'phi'}, {name:'balancedSisters', cat:'phi'}, {name: 'equalSisters2', cat:'phi'}, {name: 'accentAsHead', cat: ''}, {name: 'noLapseL', cat: ''}];
   var jtrees = getAccentTrees();
 
   my_built_in_analysis(gen, 'addJapaneseTones', jtrees, con);
@@ -3583,7 +3613,7 @@ function built_in_Italian_NVH(){
 */
 function built_in_Chamorro_RB(){
   var gen = {obeysHeadedness: true, obeysNonrecursivity: false, obeysExhaustivity: ['i'], cliticMovement: true};
-  var con = [{name: 'matchSP', cat:'xp'}, {name: 'matchPS', cat:'phi'}, {name: 'equalSistersAdj', cat:'phi'}, {name: 'binMaxBranches', cat:'i'}, {name: 'strongStart_Elfner', cat:'syll'}, {name: 'alignLeftMorpheme', cat:"clitic gui' yu' hit hao"}];
+  var con = [{name: 'matchSP', cat:'xp', options:{requireOvertHead:true}}, {name: 'matchPS', cat:'phi'}, {name: 'equalSistersAdj', cat:'phi'}, {name: 'binMaxBranches', cat:'i'}, {name: 'strongStart_Elfner', cat:'syll'}, {name: 'alignLeftMorpheme', cat:"gui' yu' hit hao"}];
   var chamorrotrees = chamorro_clitic_trees;
   my_built_in_analysis(gen, false, chamorrotrees, con);
 }
@@ -4636,6 +4666,13 @@ window.addEventListener('load', function(){
 		//Get input to GEN.
 		var pString = spotForm.inputToGen.value;
 
+		// Get the code that is in the stree textarea
+		var treeCode = spotForm.sTree.value
+		// if code has been generated, then ignore pString in GEN
+		if(treeCode !== "{}") {
+			pString = "";
+		}
+
 		//Build a list of checked GEN options.
 		var genOptions = {};
 		for(var i=0; i<spotForm.genOptions.length; i++){
@@ -4703,7 +4740,7 @@ window.addEventListener('load', function(){
 			var sTree = sTrees[i];
 			//console.log(pString.split(" ").length >= 6)
 			//warn user about using more than six terminals
-			
+
 
 			//warn user about possibly excessive numbers of candidates
 			if (genOptions['cliticMovement'] && (!genOptions['noUnary'] && (getLeaves(sTree).length >= 5 || pString.split(" ").length >= 5))
@@ -4711,13 +4748,13 @@ window.addEventListener('load', function(){
 				if(!confirm("You have selected GEN settings that allow clitic reordering, and included a sentence of ".concat( pString.split(" ").length.toString()," terminals. This GEN may yield more than 10K candidates. To reduce the number of candidates, consider enforcing non-recursivity, exhaustivity, and/or branchingness for intermediate prosodic nodes. Do you wish to proceed with these settings?"))){
 					throw new Error("clitic movement with too many terminals");
 				}
-			} 
+			}
 			else if(getLeaves(sTree).length >= 6 || pString.split(" ").length >= 6){
 				if(!confirm("Inputs of more than six terminals may run slowly and even freeze your browser, depending on the selected GEN options. Do you wish to continue?")){
 					throw new Error("Tried to run gen with more than six terminals");
 				}
 			}
-			
+
 			if (genOptions['cliticMovement']){
 				var candidateSet = GENwithCliticMovement(sTree, pString, genOptions);
 			}
@@ -4850,6 +4887,7 @@ window.addEventListener('load', function(){
 		}), null, 4);
 
 		document.getElementById('doneMessage').style.display = 'inline-block';
+		spotForm.inputToGen.value = "";
 	});
 
 	document.getElementById('danishJsonTreesButton').addEventListener('click', function() {
@@ -5008,6 +5046,11 @@ function saveAs(blob, name) {
 	document.body.appendChild(a);
 	a.click();
 	document.body.removeChild(a);
+}
+
+function clearTableau() {
+	 document.getElementById('results-container').innerHTML = "";
+	 document.getElementById('results-container').className = "";
 }
 if (!Element.prototype.matches)
 		Element.prototype.matches = Element.prototype.msMatchesSelector || 
@@ -5268,10 +5311,10 @@ function makeTableau(candidateSet, constraintSet, options){
 		//If there are options, truncate their attribute names and append them to the constraint name.
 		if(conParts[2] && conParts[2].length){
 			var optionObj = JSON.parse(conParts[2]);
-			var options = Object.getOwnPropertyNames(optionObj);
-			for(var j in options){
-				if(optionObj[options[j]]==true){
-					var temp = options[j];
+			var optionProperties = Object.getOwnPropertyNames(optionObj);
+			for(var j in optionProperties){
+				if(optionObj[optionProperties[j]]==true){
+					var temp = optionProperties[j];
 					if(temp.indexOf('require')>=0){
 						temp = temp.slice('require'.length);
 					}

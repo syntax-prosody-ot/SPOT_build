@@ -1,13 +1,13 @@
 /* For the specified lexical item(s), which are assumed to  be clitics (category is not checked),
 *  assign a violation for every terminal that intervenes between the left edge of the tree
-*  and the lexical item. 
+*  and the lexical item.
 */
 
 function alignLeftMorpheme(stree, ptree, clitic){
     if(ptree.cat !== "i" && ptree.cat !== 'iota'){
         console.warn("You are calling alignLeftClitic on a tree that is not rooted in i");
     }
-    clitic = clitic.split(' ');
+    clitic = clitic.split(';');
     var leaves = getLeaves(ptree);
     var cliticPos = leaves.findIndex(function(element){return clitic.indexOf(element.id) >= 0;});
     if(cliticPos < 0){
@@ -15,7 +15,8 @@ function alignLeftMorpheme(stree, ptree, clitic){
         cliticPos = 0;
     }
     return cliticPos;
-}/* Assign a violation for every node in sTree of category sCat
+}
+/* Assign a violation for every node in sTree of category sCat
 whose d edge is not aligned with the d edge of a node in pTree 
 of the prosodic category corresponding to s
 
@@ -626,6 +627,13 @@ function binMaxBranches(s, ptree, cat){
 		}
 	}
 	return vcount;
+}
+
+//A combined binarity constraint (branch-counting)
+function binBranches(stree, ptree, cat){
+	var minCount = binMinBranches(stree, ptree, cat);
+	var maxCount = binMaxBranches(stree, ptree, cat);
+	return minCount+maxCount;
 }
 
 /* Category-sensitive branch-counting constraint
@@ -2327,15 +2335,14 @@ function strongStart(s, ptree, cat){
 		var leftmostCat = ptree.children[0].cat;
 		for(var i = 1; i<ptree.children.length; i++){
 			var sisterCat = ptree.children[i].cat;
-			console.log(leftmostCat, sisterCat, pCat.isLower(leftmostCat, sisterCat));
+			//console.log(leftmostCat, sisterCat, pCat.isLower(leftmostCat, sisterCat));
 
 			if(pCat.isLower(leftmostCat, sisterCat))
 			{
 				vcount++;
+				break;
 			}
 		}
-		
-
 	}
 	
 	// Recurse
@@ -3320,6 +3327,7 @@ function clearAnalysis(){
   var genOptions = document.getElementsByName("genOptions");
   var hideCategories = document.getElementsByName('hideCategory');
   var constraints = document.getElementsByName("constraints");
+  var conOptions;
   var fieldsets = document.getElementsByTagName("fieldset");
 
   //reset gen options
@@ -3343,6 +3351,21 @@ function clearAnalysis(){
   for(var i = 0; i<constraints.length; i++){
     if(constraints[i].checked){
       constraints[i].click();
+    }
+    //reset constraint options
+    conOptions = document.getElementsByName("option-"+constraints[i].value);
+    if(conOptions.length){
+      for(var z = 0; z < conOptions.length; z++){
+        //set checkboxes to unchecked
+        if(conOptions[z].type == "checkbox"){
+          conOptions[z].checked = false;
+        }
+        //set drop-down selectors to "any"
+        else if(conOptions[z].tagName === "SELECT"){
+          //all of the drop-down constraint options default to "any" as of 2/1/20 -MT
+          conOptions[z].value = "any";
+        }
+      }
     }
   }
 
@@ -3415,11 +3438,26 @@ function built_in_con(input){
       if(optionBoxes.length){
         //iterate over option checkboxes corresponding to this input
         for(var x in optionBoxes){
-          if(input[i].options[optionBoxes[x].value]){
-            optionBoxes[x].checked = true;
+          //dealing with checkboxes
+          if(optionBoxes[x].type === "checkbox"){
+            if(input[i].options[optionBoxes[x].value]){
+              optionBoxes[x].checked = true;
+            }
+            else{
+              optionBoxes[x].checked = false;
+            }
           }
-          else{
-            optionBoxes[x].checked = false;
+          //if not a checkbox, it should be a selector
+          else if(optionBoxes[x].tagName === "SELECT"){
+            var child = optionBoxes[x].getElementsByTagName("option");
+            //iterate over options in the select tag
+            for(var count = 0; count < child.length; count++){
+              if(input[i].options[child[count].value]){
+                /*if the input options contain reference to the options inside
+                this selector, set this selector to that option value */
+                optionBoxes[x].value = child[count].value;
+              }
+            }
           }
         }
       }
@@ -3570,7 +3608,7 @@ function built_in_Japanese_IM2017(){
 
 //cf. analysis_html_files/abstractMatchAnalysis.html. Japanese rebracketing project, Kalivoda 2019.
 function built_in_Japanese_rebracketing(n){
-  var gen = {obeysExhaustivity: true, requireRecWrapper: true};
+  var gen = {obeysExhaustivity: true, requireRecWrapper: true, rootCategory: "phi"};
   var pwfcs = [{name: 'binMinBranches', cat:'phi'}, {name:'binMaxBranches', cat:'phi'}, {name:'binMaxLeaves', cat:'phi'}];
   var mapping = [{name: 'matchSP', cat:'xp'}, {name:'matchPS', cat:'phi'}, {name: 'alignRight', cat:'xp'}, {name: 'alignLeft', cat:'xp'}, {name: 'alignRightPS', cat:'phi'}, {name: 'alignLeftPS', cat:'phi'}];
   var jtrees = [tree_3w_1, tree_3w_2, tree_4w_1, tree_4w_2, tree_4w_3, tree_4w_4, tree_4w_5];
@@ -3757,12 +3795,24 @@ function record_analysis(){
       if(conOptions.length){
         //iterate over the options for this match constraint
         for(var x = 0; x<conOptions.length; x++){
-          optionableCon.options[conOptions[x].value] = conOptions[x].checked;
+          //if this option is a checkbox, record if it is checked
+          if(conOptions[x].type == "checkbox"){
+            optionableCon.options[conOptions[x].value] = conOptions[x].checked;
+          }
+          //if this option is a drop-down selector, record its value so long as it is not default
+          else if(conOptions[x].tagName === "SELECT" && conOptions[x].value != "any"){
+            optionableCon.options[conOptions[x].value] = true;
+          }
         }
       }
       else{
         //when there is only one option
-        optionableCon.options[conOptions.value] = conOptions.checked;
+        if(conOptions.type == "checkbox"){
+          optionableCon.options[conOptions.value] = conOptions.checked;
+        }
+        else if(conOptions.tagName === "SELECTOR"){
+          optionableCon.options[conOptions.value] = true;
+        }
       }
     }
   }
@@ -3855,9 +3905,12 @@ var terminalNum = 0;
 			- "addIrishTones_Kalivoda"
 	- noUnary (boolean): if true, don't create any nodes that immediately dominate only a single terminal.
 	- requireRecWrapper (boolean). Formerly "requirePhiStem"
+	- syntactic (boolean): are we generating syntactic trees?
 */
 window.GEN = function(sTree, words, options){
 	options = options || {}; // if options is undefined, set it to an empty object (so you can query its properties without crashing things)
+
+	var categoryHierarchy = options.syntactic ? sCat : pCat;
 
 	/* First, warn the user if they have specified terminalCategory and/or
 	 * rootCategory without specifying recursiveCategory
@@ -3871,26 +3924,32 @@ window.GEN = function(sTree, words, options){
 	 * But if they are not, the default setting code throws unhelpful errors.
 	 * The finally block throws more helpful errors and alert boxes instead
 	 */
+	
+	//a flag for whether the user has included a novel category undefined in categoryHierarchy
+	var novelCategories = false;
 	try{
 		//sets the default of recursiveCategory option to "phi"
 		options.recursiveCategory = options.recursiveCategory || "phi";
 		//sets the default of rootCategory based on recursiveCategory
-		options.rootCategory = options.rootCategory || pCat.nextHigher(options.recursiveCategory);
+		options.rootCategory = options.rootCategory || categoryHierarchy.nextHigher(options.recursiveCategory);
 		//sets the default of terminalCategory based on recursiveCategory
-		options.terminalCategory = options.terminalCategory|| pCat.nextLower(options.recursiveCategory);
+		options.terminalCategory = options.terminalCategory|| categoryHierarchy.nextLower(options.recursiveCategory);
 	}
 	finally{
-		if(options.rootCategory && pCat.indexOf(options.rootCategory)<0){
-			alert("Warning:\n"+options.rootCategory+" is not in SPOT's pre-defined prosodic hierarchy (see pCat in prosodicHierarch.js)");
-			throw new Error(options.rootCategory+" is not in SPOT's pre-defined prosodic hierarchy (see pCat in prosodicHierarch.js)");
+		if(options.rootCategory && categoryHierarchy.indexOf(options.rootCategory)<0){
+			alert("Warning:\n"+options.rootCategory+" is not in SPOT's pre-defined prosodic hierarchy (see pCat and sCat in prosodicHierarch.js)");
+			novelCategories = true;
+			//throw new Error(options.rootCategory+" is not in SPOT's pre-defined prosodic hierarchy (see pCat in prosodicHierarch.js)");
 		}
-		if(pCat.indexOf(options.recursiveCategory)<0){
-			alert("Warning:\n"+options.recursiveCategory+" is not in SPOT's pre-defined prosodic hierarchy (see pCat in prosodicHierarch.js)");
-			throw new Error(options.recursiveCategory+" is not in SPOT's pre-defined prosodic hierarchy (see pCat in prosodicHierarch.js)");
+		if(categoryHierarchy.indexOf(options.recursiveCategory)<0){
+			alert("Warning:\n"+options.recursiveCategory+" is not in SPOT's pre-defined prosodic hierarchy (see pCat and sCat in prosodicHierarch.js)");
+			novelCategories = true;
+			//throw new Error(options.recursiveCategory+" is not in SPOT's pre-defined prosodic hierarchy (see pCat in prosodicHierarch.js)");
 		}
-		if(options.terminalCategory && pCat.indexOf(options.terminalCategory)<0){
-			alert("Warning:\n"+options.terminalCategory+" is not in SPOT's pre-defined prosodic hierarchy (see pCat in prosodicHierarch.js)");
-			throw new Error(options.terminalCategory+" is not in SPOT's pre-defined prosodic hierarchy (see pCat in prosodicHierarch.js)");
+		if(options.terminalCategory && categoryHierarchy.indexOf(options.terminalCategory)<0){
+			alert("Warning:\n"+options.terminalCategory+" is not in SPOT's pre-defined prosodic hierarchy (see pCat and sCat in prosodicHierarch.js)");
+			novelCategories = true;
+			//throw new Error(options.terminalCategory+" is not in SPOT's pre-defined prosodic hierarchy (see pCat in prosodicHierarch.js)");
 		}
 	}
 
@@ -3904,15 +3963,19 @@ window.GEN = function(sTree, words, options){
 	if(options.recursiveCategory === options.terminalCategory && options.obeysNonrecursivity){
 		console.warn("You have instructed GEN to produce non-recursive trees and to produce trees where the intermediate nodes and the terminal nodes are of the same category. You will only get one bracketing.");
 	}
-	if(pCat.isHigher(options.recursiveCategory, options.rootCategory) || pCat.isHigher(options.terminalCategory, options.recursiveCategory)){
-		console.warn("You have instructed GEN to produce trees that do not obey layering. See pCat in prosodicHierarchy.js");
-	}
-	else{
-		if(options.recursiveCategory !== pCat.nextLower(options.rootCategory) && options.recursiveCategory !== options.rootCategory){
-			console.warn(""+options.recursiveCategory+" is not directly below "+options.rootCategory+" in the prosodic hierarchy. None of the resulting trees will be exhaustive because GEN will not generate any "+pCat.nextLower(options.rootCategory)+"s. See pCat in prosodicHierarchy.js");
+
+	//Perform additional checks of layering if novel categories are involved.
+	if(!novelCategories){
+		if(categoryHierarchy.isHigher(options.recursiveCategory, options.rootCategory) || categoryHierarchy.isHigher(options.terminalCategory, options.recursiveCategory)){
+			console.warn("You have instructed GEN to produce trees that do not obey layering. See pCat and sCat in prosodicHierarchy.js");
 		}
-		if(options.terminalCategory !== pCat.nextLower(options.recursiveCategory) && options.terminalCategory !== options.recursiveCategory){
-			console.warn(""+options.terminalCategory+" is not directly below "+options.recursiveCategory+" in the prosodic hierarchy. None of the resulting trees will be exhaustive because GEN will not generate any "+pCat.nextLower(options.recursiveCategory)+"s. See pCat in prosodicHierarchy.js");
+		else{
+			if(options.recursiveCategory !== categoryHierarchy.nextLower(options.rootCategory) && options.recursiveCategory !== options.rootCategory){
+				console.warn(""+options.recursiveCategory+" is not directly below "+options.rootCategory+" in the prosodic hierarchy. None of the resulting trees will be exhaustive because GEN will not generate any "+categoryHierarchy.nextLower(options.rootCategory)+"s. See pCat and sCat in prosodicHierarchy.js");
+			}
+			if(options.terminalCategory !== categoryHierarchy.nextLower(options.recursiveCategory) && options.terminalCategory !== options.recursiveCategory){
+				console.warn(""+options.terminalCategory+" is not directly below "+options.recursiveCategory+" in the prosodic hierarchy. None of the resulting trees will be exhaustive because GEN will not generate any "+categoryHierarchy.nextLower(options.recursiveCategory)+"s. See pCat and sCat in prosodicHierarchy.js");
+			}
 		}
 	}
 
@@ -4270,7 +4333,46 @@ function GENwithCliticMovement(stree, words, options){
 	//candidateSets;
 	return [].concat.apply([], candidateSets);
 }
-var uTreeCounter = 0;
+/* Function that calls GEN from candidategenerator.js to generate syntactic input trees
+*  rather than output prosodic trees.
+*  By default, this creates unary and binary-branching strees rooted in xp, with all terminals mapped to x0.
+*  Intermediate levels are xps, and structures of the form [x0 x0] are excluded as being 
+*  syntactically ill-formed, since they only arise from head movement.
+*  
+*  Options:
+*  - rootCategory
+*  - recursiveCategory
+*  - terminalCategory
+*  - noAdjacentHeads: are x0 sisters allowed? [x0 x0]
+*  - noAdjuncts: are xp sisters allowed? [xp xp]
+*  - maxBranching: determines the maximum number of branches that are tolerated in the resulting syntactic trees
+*/
+function sTreeGEN(terminalString, options)
+{
+    options = options || {noAdjacentHeads:true, maxBranching:2};
+    options.syntactic = true;
+    options.recursiveCategory = options.recursiveCategory || 'xp';
+    options.terminalCategory = options.terminalCategory || 'x0';
+    options.rootCategory = options.rootCategory || 'xp';
+
+    //Run GEN on the provided terminal string
+    var autoSTreePairs = GEN({}, terminalString, options);
+    //Select just the generated trees
+    var sTreeList = autoSTreePairs.map(x=>x[1]);
+
+    //Apply filters
+    if(options.noAdjacentHeads){
+        sTreeList = sTreeList.filter(x => !x0Sisters(x, 'x0'));
+    }
+    if(options.noAdjuncts){
+        sTreeList = sTreeList.filter(x => !x0Sisters(x, 'xp'));
+    }
+    if(options.maxBranching > 0){
+        sTreeList = sTreeList.filter(x=>!ternaryNodes(x, options.maxBranching));
+    }
+
+    return sTreeList;
+}var uTreeCounter = 0;
 var treeUIsTreeMap = {};
 
 function UTree(root) {
@@ -4451,6 +4553,7 @@ function UTree(root) {
 
 UTree.fromTerminals = function(terminalList) {
 	var dedupedTerminals = deduplicateTerminals(terminalList);
+	var cliticRegex = /-clitic/; //for testing if terminal should be a clitic
 
 	//Make the js tree (a dummy tree only containing the root CP)
 	var root = {
@@ -4460,10 +4563,21 @@ UTree.fromTerminals = function(terminalList) {
 	};
 	//Add the provided terminals
 	for(var i=0; i<dedupedTerminals.length; i++){
-		root.children.push({
-			"id":dedupedTerminals[i],
-			"cat":"x0"
-		});
+		//if terminal should be a clitic
+		if(cliticRegex.test(dedupedTerminals[i])){
+			//push a clitic to root.children
+			root.children.push({
+				"id":dedupedTerminals[i].replace('-clitic', ''),
+				"cat":"clitic"
+			});
+		}
+		//non-clitic terminals
+		else {
+			root.children.push({
+				"id":dedupedTerminals[i],
+				"cat":"x0"
+			});
+		}
 	}
 	return new UTree(root);
 };
@@ -4615,7 +4729,9 @@ window.addEventListener('load', function(){
 						var categoryBox = constraintCatSet[j];
 						if(categoryBox.checked){
 							var category = categoryBox.value;
-
+							if(constraint === "alignLeftMorpheme") {
+								category = category.split(' ').join(';');
+							}
 							//Figure out selected match options for the constraint
 							if(spotForm['option-'+constraint]){
 								var constraintOptionSet = spotForm['option-'+constraint];
@@ -4665,13 +4781,6 @@ window.addEventListener('load', function(){
 
 		//Get input to GEN.
 		var pString = spotForm.inputToGen.value;
-
-		// Get the code that is in the stree textarea
-		var treeCode = spotForm.sTree.value
-		// if code has been generated, then ignore pString in GEN
-		if(treeCode !== "{}") {
-			pString = "";
-		}
 
 		//Build a list of checked GEN options.
 		var genOptions = {};
@@ -4740,7 +4849,7 @@ window.addEventListener('load', function(){
 			var sTree = sTrees[i];
 			//console.log(pString.split(" ").length >= 6)
 			//warn user about using more than six terminals
-
+			
 
 			//warn user about possibly excessive numbers of candidates
 			if (genOptions['cliticMovement'] && (!genOptions['noUnary'] && (getLeaves(sTree).length >= 5 || pString.split(" ").length >= 5))
@@ -4748,13 +4857,13 @@ window.addEventListener('load', function(){
 				if(!confirm("You have selected GEN settings that allow clitic reordering, and included a sentence of ".concat( pString.split(" ").length.toString()," terminals. This GEN may yield more than 10K candidates. To reduce the number of candidates, consider enforcing non-recursivity, exhaustivity, and/or branchingness for intermediate prosodic nodes. Do you wish to proceed with these settings?"))){
 					throw new Error("clitic movement with too many terminals");
 				}
-			}
+			} 
 			else if(getLeaves(sTree).length >= 6 || pString.split(" ").length >= 6){
 				if(!confirm("Inputs of more than six terminals may run slowly and even freeze your browser, depending on the selected GEN options. Do you wish to continue?")){
 					throw new Error("Tried to run gen with more than six terminals");
 				}
 			}
-
+			
 			if (genOptions['cliticMovement']){
 				var candidateSet = GENwithCliticMovement(sTree, pString, genOptions);
 			}
@@ -4879,15 +4988,38 @@ window.addEventListener('load', function(){
 	refreshHtmlTree();
 	document.getElementById('treeUIinner').style.display = 'block';
 	*/
-
+	function parseCats(node){
+		var cats = node['cat'].split(',');
+		if (cats.length > 1){
+			node['cat'] = cats[0];
+		}
+		for (var cat of cats){
+			if (cat.indexOf('silentHead') != -1){
+				node['silentHead'] = true;
+			}
+			if (cat.indexOf('func') != -1){
+				node['func'] = true;
+			}
+		}
+		var children = node['children'];
+		if (children != undefined){
+			for (var child of children){
+				parseCats(child);
+			}
+		}
+	}
 	//Look at the html tree and turn it into a JSON tree. Put the JSON in the following textarea.
 	document.getElementById('htmlToJsonTreeButton').addEventListener('click', function(){
 		spotForm.sTree.value = JSON.stringify(Object.values(treeUIsTreeMap).map(function(tree) {
-			return JSON.parse(tree.toJSON()); // bit of a hack to get around replacer not being called recursively
+
+			// console.log(JSON.parse(tree.toJSON()));
+			// console.log(JSON.parse(tree.toJSON())['cat']);
+			var checkTree = JSON.parse(tree.toJSON());
+			parseCats(checkTree);
+			return (checkTree); // bit of a hack to get around replacer not being called recursively
 		}), null, 4);
 
 		document.getElementById('doneMessage').style.display = 'inline-block';
-		spotForm.inputToGen.value = "";
 	});
 
 	document.getElementById('danishJsonTreesButton').addEventListener('click', function() {
@@ -4897,6 +5029,7 @@ window.addEventListener('load', function(){
 	treeTableContainer.addEventListener('input', function(e) {
 		var target = e.target;
 		var idPieces = target.id.split('-');
+		//console.log(idPieces);
 		var treeIndex = idPieces[2];
 		var nodeId = idPieces[1];
 		var isCat = idPieces[0] === 'catInput';
@@ -5049,8 +5182,8 @@ function saveAs(blob, name) {
 }
 
 function clearTableau() {
-	 document.getElementById('results-container').innerHTML = "";
-	 document.getElementById('results-container').className = "";
+	document.getElementById('results-container').innerHTML = "";
+	document.getElementById('results-container').className = "";
 }
 if (!Element.prototype.matches)
 		Element.prototype.matches = Element.prototype.msMatchesSelector || 
@@ -5090,23 +5223,44 @@ function catsMatch(aCat, bCat){
 	}
 }
 
-
+//defines the syntactic category hierarchy that we are working with
+var sCat = ["cp", "xp", "x0"];
 
 //defines the prosodic hierarchy
 var pCat = ["u", "i", "phi", "w", "Ft", "syll"];
 
 //Function that compares two prosodic categories and returns whether cat1 is higher in the prosodic hierarchy than cat2
-pCat.isHigher = function (cat1, cat2){
+function isHigher(pCat, cat1, cat2){
 	return (pCat.indexOf(cat1) < pCat.indexOf(cat2));
 }
+pCat.isHigher = function(cat1, cat2){
+	return (isHigher(pCat, cat1, cat2));
+}
+sCat.isHigher = function(cat1, cat2){
+	return (isHigher(sCat, cat1, cat2));
+}
 
-// Function that compares two prosodic categories and returns true if cat 1 is lower in the prosodic hierarchy than cat2
-pCat.isLower = function (cat1, cat2){
+
+// Functions that compare two prosodic/syntactic categories and returns true if cat 1 is lower in the prosodic hierarchy than cat2
+function isLower(pCat, cat1, cat2){
 	return (pCat.indexOf(cat1) > pCat.indexOf(cat2));
+}
+pCat.isLower = function (cat1, cat2){
+	return (isLower(pCat, cat1, cat2));
+}
+sCat.isLower = function (cat1, cat2){
+	return (isLower(sCat, cat1, cat2));
 }
 
 // Function that returns the prosodic category that is one level lower than the given category
 pCat.nextLower = function(cat) {
+	return nextLower(pCat, cat);
+}
+sCat.nextLower = function(cat) {
+	return nextLower(sCat, cat);
+}
+
+function nextLower(pCat, cat){
 	var i = pCat.indexOf(cat);
 	if (i < 0)
 		throw new Error(cat + ' is not a prosodic category');
@@ -5279,7 +5433,45 @@ function runConstraint(constraint, sname, pname, cat, expectedViolations) {
     logreport(['<span class="main-report-line" style="background-color: white">Actual Violations: <span class="actual-violation-count">', violationCount, '</span></span><br/><br/>'].join(''));
     return violationCount;
 }
+function x0Sisters(sTree, cat){
+	var x0SistersFound = false;
+    if(sTree.children && sTree.children.length){
+        var numX0 = 0;
+        for(var i=0; i<sTree.children.length; i++){
+            var child = sTree.children[i];
 
+            if(child.cat === cat){
+                numX0++;
+            }
+            if(numX0 > 1){
+                x0SistersFound = true;
+                break;
+            }
+
+            x0SistersFound = x0Sisters(child, cat);
+            if(x0SistersFound) break;
+        }
+        
+    }
+    return x0SistersFound;	
+}
+
+function ternaryNodes(sTree, maxBr){
+    var ternaryNodesFound = false;
+    if(sTree.children && sTree.children.length){
+        if(sTree.children.length > maxBr){
+            ternaryNodesFound = true;
+            return true;
+        }
+        for(var i=0; i<sTree.children.length; i++){
+            var child = sTree.children[i];
+            ternaryNodesFound = ternaryNodes(child, maxBr);
+            if(ternaryNodesFound) break;
+        }
+        
+    }
+    return ternaryNodesFound;
+}
 // Produces an array of arrays representing a tableau
 // Options: GEN options and options for parenthesize trees
 
@@ -5331,8 +5523,9 @@ function makeTableau(candidateSet, constraintSet, options){
 	var getCandidate = options.inputTypeString ? function(candidate) {return candidate;} : globalNameOrDirect;
 
 	//Assess violations for each candidate.
-	for(var i = 0; i < candidateSet.length; i++){
-		var candidate = candidateSet[i];
+	var numCand = candidateSet.length;
+	for(var i = 1; i < numCand; i++){
+		var candidate = candidateSet[numCand-i];
 		var ptreeStr = options.inputTypeString ? candidate[1] : parenthesizeTree(globalNameOrDirect(candidate[1]), options);
 		var tableauRow = [ptreeStr];
 		for(var j = 0; j < constraintSet.length; j++){
@@ -5437,9 +5630,25 @@ function parenthesizeTree(tree, options){
 	}
 
 	function processNode(node){
+		//console.log(node);
 		var nonTerminal = (node.children instanceof Array) && node.children.length;
 		if (showNewCats && !parens.hasOwnProperty(node.cat)){
 			parens[node.cat] = ["["+node.cat+" ", "]"];
+		}
+		for (item in node){
+			if (item == "id" || item == "cat" || item == "children"){
+				continue;
+			}
+			if (node[item]){
+				if (toneTree.length == 0){
+					toneTree.push(item);
+				}
+				else{
+					toneTree[0] += '.' + item;
+				}
+			}
+			// console.log(item);
+			// console.log(node[item]);
 		}
 		var visible = invisCats.indexOf(node.cat) === -1 && parens.hasOwnProperty(node.cat);
 		if (nonTerminal) {
@@ -5495,6 +5704,8 @@ function parenthesizeTree(tree, options){
 	}
 
 	processNode(tree);
+	// console.log(tree);
+	// console.log(toneTree);
 	guiTree = parTree.join('');
 	if(showTones)
 		guiTree = guiTree + '\n' + toneTree.join('');

@@ -1,13 +1,13 @@
 /* For the specified lexical item(s), which are assumed to  be clitics (category is not checked),
 *  assign a violation for every terminal that intervenes between the left edge of the tree
-*  and the lexical item. 
+*  and the lexical item.
 */
 
 function alignLeftMorpheme(stree, ptree, clitic){
     if(ptree.cat !== "i" && ptree.cat !== 'iota'){
         console.warn("You are calling alignLeftClitic on a tree that is not rooted in i");
     }
-    clitic = clitic.split(' ');
+    clitic = clitic.split(';');
     var leaves = getLeaves(ptree);
     var cliticPos = leaves.findIndex(function(element){return clitic.indexOf(element.id) >= 0;});
     if(cliticPos < 0){
@@ -15,7 +15,8 @@ function alignLeftMorpheme(stree, ptree, clitic){
         cliticPos = 0;
     }
     return cliticPos;
-}/* Assign a violation for every node in sTree of category sCat
+}
+/* Assign a violation for every node in sTree of category sCat
 whose d edge is not aligned with the d edge of a node in pTree 
 of the prosodic category corresponding to s
 
@@ -626,6 +627,13 @@ function binMaxBranches(s, ptree, cat){
 		}
 	}
 	return vcount;
+}
+
+//A combined binarity constraint (branch-counting)
+function binBranches(stree, ptree, cat){
+	var minCount = binMinBranches(stree, ptree, cat);
+	var maxCount = binMaxBranches(stree, ptree, cat);
+	return minCount+maxCount;
 }
 
 /* Category-sensitive branch-counting constraint
@@ -2327,15 +2335,14 @@ function strongStart(s, ptree, cat){
 		var leftmostCat = ptree.children[0].cat;
 		for(var i = 1; i<ptree.children.length; i++){
 			var sisterCat = ptree.children[i].cat;
-			console.log(leftmostCat, sisterCat, pCat.isLower(leftmostCat, sisterCat));
+			//console.log(leftmostCat, sisterCat, pCat.isLower(leftmostCat, sisterCat));
 
 			if(pCat.isLower(leftmostCat, sisterCat))
 			{
 				vcount++;
+				break;
 			}
 		}
-		
-
 	}
 	
 	// Recurse

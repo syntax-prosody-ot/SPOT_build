@@ -1,10 +1,10 @@
-/* For the specified lexical item(s), which are assumed to  be clitics (category is not checked),
-*  assign a violation for every terminal that intervenes between the left edge of the tree
+/* For the specified lexical item(s), which are assumed to be clitics (category is not checked),
+*  assign a violation for every terminal that intervenes between the right edge of the tree
 *  and the lexical item.
 */
 
-function alignLeftMorpheme(stree, ptree, clitic){
-    if(ptree.cat !== "i" && ptree.cat !== 'iota'){
+function alignMorpheme(stree, ptree, clitic, direction){
+	if(ptree.cat !== "i" && ptree.cat !== 'iota'){
         console.warn("You are calling alignLeftClitic on a tree that is not rooted in i");
     }
     clitic = clitic.split(';');
@@ -14,8 +14,36 @@ function alignLeftMorpheme(stree, ptree, clitic){
         console.warn("The specified clitic "+clitic+" was not found in this tree");
         cliticPos = 0;
     }
-    return cliticPos;
+    if (direction == "left"){
+    	return cliticPos;
+    }
+    else{
+    	return leaves.length - cliticPos - 1;
+    }
+    
 }
+
+/* For the specified lexical item(s), which are assumed to be clitics (category is not checked),
+*  assign a violation for every terminal that intervenes between the left edge of the tree
+*  and the lexical item.
+*/
+
+function alignLeftMorpheme(stree, ptree, clitic){
+   return alignMorpheme(stree,ptree,clitic,"left");
+}
+
+/* For the specified lexical item(s), which are assumed to be clitics (category is not checked),
+*  assign a violation for every terminal that intervenes between the right edge of the tree
+*  and the lexical item.
+*/
+
+function alignRightMorpheme(stree, ptree, clitic){
+    return alignMorpheme(stree, ptree, clitic,"right");
+}
+
+
+
+
 /* Assign a violation for every node in sTree of category sCat
 whose d edge is not aligned with the d edge of a node in pTree 
 of the prosodic category corresponding to s
@@ -38,6 +66,7 @@ function alignRight(sTree, pTree, sCat){
 function alignSP(sTree, pTree, sCat, d){
 	var getEdge = (d==="left") ? getLeftEdge : getRightEdge;
 	var vCount = 0;
+	
 	walkTree(sTree, function(sNode){
 		if(sNode.cat !== sCat)	 // only go further if sNode has the category we're interested in
 			return;
@@ -54,7 +83,7 @@ function alignSP(sTree, pTree, sCat, d){
 				pEdge = pNode;	//I'm assuming the leaves are words...
 			if(sEdge.id === pEdge.id){
 				noMatch = false;
-				return false;
+				return DONT_WALK_SUBTREES;
 			}
 		});
 		if(noMatch)
@@ -84,6 +113,41 @@ function alignRightPS(sTree, pTree, cat){
 	return alignPS(sTree, pTree, cat, 'right');
 }
 
+function alignFocus(sTree, pTree, cat, d){
+	var getEdge = (d==="left") ? getLeftEdge : getRightEdge;
+	var vCount = 0;
+	walkTree(sTree, function(sNode){
+		if(!sNode.foc)	 // only go further if sNode is a focus node
+			return;
+		var sEdge = getEdge(sNode);
+		if(!sEdge)
+			sEdge = sNode;	// If sNode is a leaf (which it probably shouldn't be but depending on the tree might be),
+								// then look for a p-node that matches sNode itself. TODO is this a good idea?
+		var noMatch = true;
+		walkTree(pTree, function(pNode){
+			//!catsMatch(sCat, pNode.cat)
+			if(pNode.cat !== cat)
+				return;
+			var pEdge = getEdge(pNode);
+			if(!pEdge) 
+				pEdge = pNode;	//I'm assuming the leaves are words...
+			if(sEdge.id === pEdge.id){
+				noMatch = false;
+				return false;
+			}
+		});
+		if(noMatch)
+			vCount++;
+	});
+	return vCount;
+
+}
+function alignFocLeft(sTree, pTree, cat){
+	return alignFocus(sTree, pTree, cat, 'left');
+}
+function alignFocRight(sTree, pTree, cat){
+	return alignFocus(sTree, pTree, cat, 'right');
+}
 function wrap(sTree, pTree, cat){
 	var vCount = 0;
 	walkTree(sTree, function(sNode){
@@ -103,6 +167,9 @@ function wrap(sTree, pTree, cat){
 			vCount++;
 	});
 	return vCount;
+}
+function wrapPS(sTree, pTree, cat){
+	return wrap(pTree, sTree, cat);
 }
 
 // Returns true if a contains b
@@ -682,6 +749,10 @@ function binMaxBranchesGradient(s, ptree, cat){
 	return vcount;
 }
 
+function binBrGradient(s, ptree, cat){
+	return binMaxBranchesGradient(s, ptree, cat)+binMinBranches(s, ptree, cat);
+}
+
 /*TRUCKENBRODT-STYLE BINARITY*/
 
 /* Categorical BinMax (Leaves)
@@ -754,6 +825,15 @@ function binMinLeaves(s, ptree, c){
 		}
 	}
 	return vcount;
+}
+
+//Combines the violations of maximal and minimal binarity (leaf-counting)
+function binLeaves(s, ptree, c){
+	return binMaxLeaves(s, ptree, c) + binMinLeaves(s, ptree, c);
+}
+
+function binLeavesGradient(s, ptree, c){
+	return binMaxLeavesGradient(s, ptree, c) + binMinLeaves(s, ptree, c);
 }
 
 //Helper function: given a node x, returns all the descendents of x that have category cat.
@@ -874,6 +954,38 @@ Note: relies on getLeaves.
 In the future we might want to have structure below the level of the (terminal) word, e.g., feet
 and in that case would need a type-sensitive implementation of getLeaves
 */
+
+/*
+	Head binarity for Japanese compounds
+*/
+function binMaxHead(s, ptree, cat) {
+	markHeadsJapanese(ptree);
+	var vcount = 0;
+	// non terminal
+	if(ptree.children && ptree.children.length){
+		// if category is correct and word is head
+		if(ptree.cat === cat && ptree.head === true){
+			if(ptree.children.length > 2){
+				vcount++;
+			}
+		}
+		for(var i = 0; i<ptree.children.length; i++){
+			vcount += binMaxHead(s, ptree.children[i], cat);
+		}
+	}
+	// terminal
+	else {
+		// if category is correct and word is head
+		if(ptree.cat === cat && ptree.head === true){
+			var id = ptree.id.split('_');
+			id = id[0];
+			if(id.length > 2) {
+				vcount++;
+			}
+		}
+	}
+	return vcount;
+}
 function isInArray(myArray, x)
 {
 	var answer = false;
@@ -1489,9 +1601,9 @@ function equalStrengthLeft(stree, ptree, cat){
 * "Vertically categorical"; greater distance between parent and child on PH does not result in higher vcount.
 ******************/
 
-function exhaust1(s, ptree){
+function exhaustChild(s, ptree){
 //Assumes trees that obey Layering.
-	
+
 	//Base case: if parent is a terminal, return 0 violations.
 	if (!ptree.children){
 		return 0;
@@ -1507,11 +1619,41 @@ function exhaust1(s, ptree){
 			if (ptree.cat!==child.cat && pCat.nextLower(ptree.cat)!==child.cat){
 				vcount++;
 			}
-			vcount += exhaust1(s, child);
+			vcount += exhaustChild(s, child);
 		}
 		return vcount;
 	}
 };
+/*Included for backward compatability*/
+function exhaust1(s, ptree){
+	return exhaustChild(s, ptree);
+}
+function exhaustParent(s, ptree){
+//Assumes trees that obey Layering.
+	//Base case: if parent is a terminal, return 0 violations.
+	if (!ptree.children){
+		return 0;
+	}
+	
+	//Recursive case: if parent is non_terminal, find out if there are any violations in each of the subtrees rooted in its children.
+
+	if(ptree.children && ptree.children.length){
+		var vcount = 0;
+		var child;
+		for (var i=0; i < ptree.children.length; i++){			
+			child = ptree.children[i];
+			if (ptree.cat!==child.cat && pCat.nextLower(ptree.cat)!==child.cat){
+				//alreadyViolated.push(child.cat);
+				vcount++;
+				break;
+			}
+			vcount += exhaustParent(s, child)
+		}
+		return vcount;
+	}
+};
+
+
 /*
 Defined in Ito & Mester (2013) as: "Every accented word must be the head of a (minimal) phi
 Assign a violation for each accented prosodic word that is not the head of a minimal phi."
@@ -1706,7 +1848,7 @@ function sameIds(a1, a2){
 }
 
 
-function matchPS(sTree, pParent, pCat, options)
+function matchPS(sParent, pParent, pCat, options)
 //Assign a violation for every prosodic node of type pCat in pParent that doesn't have a corresponding syntactic node in sTree,
 //where "corresponding" is defined as: dominates all and only the same terminals, and has the corresponding syntactic category
 //Assumes no null terminals.
@@ -1714,6 +1856,7 @@ function matchPS(sTree, pParent, pCat, options)
 //is set to true. The same goes for the syntactic trees
 {
 	options = options || {};
+	var sTree = sParent;
 	var flippedOptions = {};
 	flippedOptions.maxSyntax = options.maxProsody || false;
 	flippedOptions.nonMaxSyntax = options.nonMaxProsody || false;
@@ -1728,15 +1871,15 @@ function matchPS(sTree, pParent, pCat, options)
 	return matchSP(pParent, sTree, pCat, flippedOptions);
 }
 
-
-//TODO: what about null syntactic terminals?? these need to be filtered out of the syntactic input?? write this function later.
-
 /* matchSP = Match(Syntax, Prosody):
 * Assign a violation for every syntactic node of type sCat in sParent that
 * doesn't have a  corresponding prosodic node in pTree, where "corresponding"
 * is defined as: dominates all and only the same terminals, and has the
 * corresponding prosodic category.
 * By default, assumes no null syntactic terminals.
+*
+* If sCat is 'any', syntactic category labels will be ignored.
+*
 * Options (all boolean):
 * requireLexical: To ignore non-lexical XPs give them an attribute func: true.
 *	requireOvertHead: To ignore silently-headed XPs, give them an attribute silentHead: true
@@ -1750,10 +1893,11 @@ function matchPS(sTree, pParent, pCat, options)
 *	minProsody: If true, the prosodic match needs to be minimal. Passed to hasMatch.
 *	nonMaxProsody: If true, the prosodic match must be non-maximal. Passed to hasMatch.
 *	nonMinProsody: If true, the prosodic match must be non-minimal. Passed to hasMatch.
-*/
-function matchSP(sParent, pTree, sCat, options)
+*	anyPCat: if true, match with any prosodic category. Passed to hasMatch*/
+function matchSP(inputTree, pTree, sCat, options)
 {
 	options = options || {};
+	var sParent = inputTree;
 	markMinMax(sParent);
 	if(sParent.cat === sCat)
 		logreport.debug("\tSeeking match for "+sParent.id + " in tree rooted in "+pTree.id);
@@ -1764,7 +1908,7 @@ function matchSP(sParent, pTree, sCat, options)
 	*  - either it is lexical (sParent.func is false) OR requireLexical is false
 	*  - either it has an overt head (sParent.silent is false) OR requireOvertHead is false
 	*/
-	if(sParent.cat === sCat
+	if((sCat === 'any' || (sParent.cat === sCat ))
 	&& !(options.requireLexical && sParent.func)
 	&& !(options.requireOvertHead && sParent.silentHead)
 	&& !(options.maxSyntax && !sParent.isMax)
@@ -1801,7 +1945,7 @@ function hasMatch(sNode, pTree, options)
 
 	var sLeaves = getLeaves(sNode);
 	markMinMax(pTree);
-	if(catsMatch(sNode.cat, pTree.cat)
+	if((options.anyPCat || catsMatch(sNode.cat, pTree.cat))
 	&& sameIds(getLeaves(pTree), sLeaves)
 	&& !(options.requireLexical && pTree.func)
 	&& !(options.requireOvertHead && pTree.silentHead)
@@ -1891,10 +2035,16 @@ function matchNonMinSyntax(sTree, pTree, sCat, options){
 	return matchSP(sTree, pTree, sCat, options);
 }
 
-//Match for custom match options
-function matchCustom(sTree, pTree, sCat, options){
+//Match for custom match SP options
+function matchCustomSP(sTree, pTree, sCat, options){
 	options = options || {};
 	return matchSP(sTree, pTree, sCat, options);
+}
+
+//Match for custom match PS options
+function matchCustomPS(sTree, pTree, sCat, options){
+	options = options || {};
+	return matchPS(pTree, sTree, sCat, options);
 }
 
 //Match Maximal P --> S
@@ -1938,60 +2088,97 @@ function matchMinPS(s, ptree, cat, options) {
 	options.minProsody = true;
   return matchPS(s, ptree, cat, options);
 }
-function noShift(stree, ptree, cat){
-    //Get lists of terminals
+function noShift(stree, ptree, cat) {
+  // get list of terminals using helper function
+  var sorder = getTerminals(stree);
+  var porder = getTerminals(ptree);
 
-    var sleaves = getLeaves(stree);
-    var pleaves = getLeaves(ptree);
-    var sorder = new Array(sleaves.length);
-    var porder = new Array(pleaves.length);
+  //counter
+  var j = 0;
+  //flag for whether a shift in order has been detected
+  var shiftFound = false;
 
-    try {
-      if(sleaves.length != pleaves.length) {
-        throw new Error("NoShift problem: The stree and ptree have different numbers of terminals!");
+  while (!shiftFound && j < sorder.length) {
+    var x = sorder[j];
+    // establish lists of x precedes
+    var y = sorder.slice(j + 1, sorder.length);
+    var px = porder.indexOf(sorder[j]);
+    var z = porder.slice(px + 1, porder.length);
+
+    //if y has more elements than z, y can't possibly be a subset of z
+    if (y.length > z.length) {
+      shiftFound = true;
+    }
+
+    //otherwise, y may or may not be a subset of z
+    var k = 0;
+    while (k < sorder.length) {
+      if (porder.indexOf(sorder[k]) < 0) {
+        shiftFound = true;
+      }
+      k++;
+    }
+
+    //increment outer counter and check the next word
+    j++;
+  }
+
+  return shiftFound ? 1 : 0;
+}
+
+function noShiftGradient(stree, ptree, cat) {
+  var sorder = getTerminals(stree);
+  var porder = getTerminals(ptree);
+  var vcount = 0;
+  var length = sorder.length;
+
+  // initialize nxn tables of precedence relations as false
+  var sRel = new Array(length);
+  var pRel = new Array(length);
+  for (var i = 0; i < length; i++) {
+    sRel[i] = new Array(length);
+    pRel[i] = new Array(length);
+    for (var j = 0; j < length; j++) {
+      sRel[i][j] = false;
+      pRel[i][j] = false;
+    }
+  }
+
+  // fill in true precedence relations in tables where precedence is true
+  for (i = 0; i < length - 1; i++) {
+    var sy = sorder.slice(i + 1, length);
+    var px = porder[i];
+    var py = porder.slice(i + 1, length);
+    for (j = 0; j < sy.length; j++) {
+      sRel[i][sorder.indexOf(sy[j])] = true;
+      pRel[sorder.indexOf(px)][sorder.indexOf(py[j])] = true;
+    }
+  }
+
+  // count violations, where precedence relation is true in sorder and false in porder
+  for (var i = 0; i < length; i++) {
+    for (var j = 0; j < length; j++) {
+      if (sRel[i][j] == true && pRel[i][j] == false) {
+        vcount++;
       }
     }
-    catch(err) {
-      // Display error message in alert if error is thrown
-      console.warn(err);
-    }
+  }
 
-    for(var i in sleaves){
-        sorder[i] = sleaves[i].id;
-        porder[i] = pleaves[i].id;
-    }
-    //for the gradient version, we may want to use parenthesize tree for this, but we'll worry about that later.
+  return vcount;
+}
 
-    //counter
-    var j = 0;
-    //flag for whether a shift in order has been detected
-    var shiftFound = false;
-
-    while(!shiftFound && j<sorder.length){
-        var x = sorder[j];
-        // establish lists of x precedes
-        var y = sorder.slice(j+1, sorder.length);
-        var px = porder.indexOf(sorder[j]);
-        var z = porder.slice(px+1, porder.length);
-
-        //if y has more elements than z, y can't possibly be a subset of z
-        if(y.length > z.length){
-            shiftFound = true;
-        }
-
-        //otherwise, y may or may not be a subset of z
-        var k = 0;
-        while(k<sorder.length){
-            if(porder.indexOf(sorder[k])<0){
-                shiftFound = true;
-            }
-            k++;
-        }
-
-        //increment outer counter and check the next word
-        j++;
-    }
-    return shiftFound ? 1 : 0;
+function getTerminals(tree) {
+  // if input is an array of ids (in the test file noShiftGradientTest.html) then return the array
+  if (Array.isArray(tree)) {
+    return tree;
+  }
+  // else if input is a tree, then get terminals
+  var leaves = getLeaves(tree);
+  var order = new Array(leaves.length);
+  for (var i in leaves) {
+    order[i] = leaves[i].id;
+  }
+  return order;
 }
 /****************
 * Function that implements Nonrecursivity, version 1:
@@ -2277,7 +2464,55 @@ function markMinMax(mytree){
 	}
 	return mytree;
 }
-/* Assign a violation for every node whose leftmost daughter constituent is of type k
+
+/* Function to mark heads of Japanese compound words.
+ * Head of a node is the righmost daughter of the highest category.
+ */
+function markHeadsJapanese(mytree){
+	var child; //for easy accees to the current child
+	//headCat stores the highest category in children. Defaults to lowest pCat
+	var headCat = pCat[pCat.length-1];
+	if(mytree.children && mytree.children.length){
+		//mark heads and iterate through tree from RIGHT to LEFT
+		for(var i = mytree.children.length-1; i >= 0; i--){
+			child = mytree.children[i];
+			/* since we are iterating through children from right to left, when we
+			 * come across the highest cat we have seen so far, it is necessarily the
+			 * rightmost of its category */
+			if(pCat.isHigher(child.cat, headCat)){
+				headCat = child.cat;
+				child.head = true;
+				//iterate over the children we have already marked:
+				for(var x = i+1; x < mytree.children.length; x++){
+					/* when a new head is marked, all nodes to the right of it must be
+					 * marked as head = false since they are of a lower category
+					 * (remember, the outer loop is iterating from right to left) */
+					mytree.children[x].head = false;
+				}
+			}
+			else{
+				child.head = false;
+			}
+			child = markHeadsJapanese(child); //recursive function call
+		}
+	}
+	return mytree;
+}
+//Assign a violation for every node of category c in p.
+//Truckebrodt (1995, 1999): *phi
+function starCat(s, p, c){
+	var occurances = 0;
+	if (p.cat === c){
+		occurances ++;
+	};
+	if (p.children && p.children.length){
+		for (var i = 0; i < p.children.length; i ++){
+			var child = p.children[i];
+			occurances += starCat(s, child, c);
+		}
+	};
+	return occurances;
+}/* Assign a violation for every node whose leftmost daughter constituent is of type k
 *  and is lower in the prosodic hierarchy than its sister constituent immediately to its right: *(Kn Kn-1)
 *  Elfner's StrongStart.
 */
@@ -3282,6 +3517,8 @@ var wasinton = swToneGen("f:[m][mm][mm]");
 var nagasakiken = swToneGen("h:[m][m][m][m][mm]");
 var kagosimaken = swToneGen("f:[m][m][m][m][mm]");
 //Ozan's code
+const DONT_WALK_SUBTREES = false;
+
 function walkTree(node, foo) {
 	if (foo(node) === false)
 		return;

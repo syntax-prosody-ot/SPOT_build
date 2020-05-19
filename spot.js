@@ -45,49 +45,69 @@ function alignRightMorpheme(stree, ptree, clitic){
 
 
 /* Assign a violation for every node in sTree of category sCat
-whose d edge is not aligned with the d edge of a node in pTree 
+whose d edge is not aligned with the d edge of a node in pTree
 of the prosodic category corresponding to s
 
 For every sCat node s in sTree, find a node p in pTree of the proper category
 such that the first (for align-left) leaf dominated by s has the same id as
 the first leaf dominated by p.
-
-TODO Do we ever want to try to align x0 levels?? Or would we ever have an xp as a leaf?
-TODO test this function.
 */
-function alignLeft(sTree, pTree, sCat){
-	return alignSP(sTree, pTree, sCat, 'left');
-}
 
-function alignRight(sTree, pTree, sCat){
-	return alignSP(sTree, pTree, sCat, 'right');
-}
+/*
+* Options (all boolean):
+* requireLexical: To ignore non-lexical XPs give them an attribute func: true.
+*	requireOvertHead: To ignore silently-headed XPs, give them an attribute silentHead: true
+*	maxSyntax: If true, ignore non-maximal syntactic nodes (nodes of category c that are
+*				dominated by another node of category c)
+*	minSyntax: If true, ignore non-minimal syntactic nodes (nodes of category c that dominate
+*				another node of category c)
+*	nonMaxSyntax: If true, only look at non-maximal syntactic nodes
+*	nonMinSyntax: If true, only look at non-minimal syntactic nodes
+*	maxProsody: If true, the prosodic match needs to be maximal. Passed to hasMatch.
+*	minProsody: If true, the prosodic match needs to be minimal. Passed to hasMatch.
+*	nonMaxProsody: If true, the prosodic match must be non-maximal. Passed to hasMatch.
+*	nonMinProsody: If true, the prosodic match must be non-minimal. Passed to hasMatch.*/
+function alignSP(sTree, pTree, sCat, d, options){
+	options = options || {};
 
-function alignSP(sTree, pTree, sCat, d){
 	var getEdge = (d==="left") ? getLeftEdge : getRightEdge;
 	var vCount = 0;
 	
 	walkTree(sTree, function(sNode){
-		if(sNode.cat !== sCat)	 // only go further if sNode has the category we're interested in
+		markMinMax(sNode);
+		if((sNode.cat !== sCat)
+			|| (options.requireLexical && sNode.func)
+			|| (options.requireOvertHead && sNode.silentHead)
+			|| (options.maxSyntax && !sNode.isMax)
+			|| (options.minSyntax && !sNode.isMin)
+			|| (options.nonMaxSyntax && sNode.isMax)
+			|| (options.nonMinSyntax && sNode.isMin))	 // only go further if sNode has the category we're interested in
 			return;
 		var sEdge = getEdge(sNode);
 		if(!sEdge)
 			sEdge = sNode;	// If sNode is a leaf (which it probably shouldn't be but depending on the tree might be),
 								// then look for a p-node that matches sNode itself. TODO is this a good idea?
 		var noMatch = true;
+		markMinMax(pTree);
 		walkTree(pTree, function(pNode){
-			if(!catsMatch(sCat, pNode.cat))
+			if(!catsMatch(sCat, pNode.cat)
+				|| (options.maxProsody && !pNode.isMax)
+				|| (options.minProsody && !pNode.isMin)
+				|| (options.nonMaxProsody && pNode.isMax)
+				|| (options.nonMinProsody && pNode.isMin))
 				return;
 			var pEdge = getEdge(pNode);
-			if(!pEdge) 
+			if(!pEdge)
 				pEdge = pNode;	//I'm assuming the leaves are words...
 			if(sEdge.id === pEdge.id){
 				noMatch = false;
 				return DONT_WALK_SUBTREES;
 			}
 		});
-		if(noMatch)
-			vCount++;
+		if(noMatch){
+				vCount++;
+		}
+
 	});
 	return vCount;
 }
@@ -101,16 +121,41 @@ function getRightEdge(node){
 	return leaves[leaves.length-1];
 }
 
-function alignPS(sTree, pTree, cat, d){
-	return alignSP(pTree, sTree, cat, d);
+function alignPS(sTree, pTree, cat, d, options){
+	options = options || {};
+	var flippedOptions = {};
+	flippedOptions.maxSyntax = options.maxProsody || false;
+	flippedOptions.nonMaxSyntax = options.nonMaxProsody || false;
+	flippedOptions.minSyntax = options.minProsody || false;
+	flippedOptions.nonMinSyntax = options.nonMinProsody || false;
+	flippedOptions.maxProsody = options.maxSyntax || false;
+	flippedOptions.nonMaxProsody = options.nonMaxSyntax || false;
+	flippedOptions.minProsody = options.minSyntax || false;
+	flippedOptions.nonMinProsody = options.nonMinSyntax || false;
+	flippedOptions.requireLexical = options.requireLexical || false;
+	flippedOptions.requireOvertHead = options.requireOvertHead || false;
+	return alignSP(pTree, sTree, cat, d, flippedOptions);
 }
 
-function alignLeftPS(sTree, pTree, cat){
-	return alignPS(sTree, pTree, cat, 'left');
+function alignLeft(sTree, pTree, sCat, options){
+	options = options || {};
+	return alignSP(sTree, pTree, sCat, 'left', options);
 }
 
-function alignRightPS(sTree, pTree, cat){
-	return alignPS(sTree, pTree, cat, 'right');
+function alignRight(sTree, pTree, sCat, options){
+	options = options || {};
+	return alignSP(sTree, pTree, sCat, 'right', options);
+}
+
+
+function alignLeftPS(sTree, pTree, cat, options){
+	options = options || {};
+	return alignPS(sTree, pTree, cat, 'left', options);
+}
+
+function alignRightPS(sTree, pTree, cat, options){
+	options = options || {};
+	return alignPS(sTree, pTree, cat, 'right', options);
 }
 
 function alignFocus(sTree, pTree, cat, d){
@@ -743,7 +788,7 @@ function binMaxBranchesGradient(s, ptree, cat){
 			vcount += excessChildren;
 		}
 		for(var i = 0; i<ptree.children.length; i++){
-			vcount += binMaxBranches(s, ptree.children[i], cat);
+			vcount += binMaxBranchesGradient(s, ptree.children[i], cat);
 		}
 	}
 	return vcount;
@@ -3794,7 +3839,8 @@ function my_built_in_analysis(myGEN, showTones, myTrees, myCon){
 
   //Step 3: Trees
   //First, shows the tree UI & the code view
-  document.getElementById("treeUI").style.display = "block";
+  changeInputTabs('inputButton', 'goButton');
+
   for(var i = 0; i < myTrees.length; i++){
 	  var myUTree = new UTree(myTrees[i]);
 	  window.showUTree(myUTree);
@@ -4117,244 +4163,251 @@ function loadAnalysis(file){
 }
 (function() {
 
-window.GEN_impl = function(sTree, leaves, options) {
+  window.GEN_impl = function(sTree, leaves, options) {
 
-	var recursiveOptions = {};
-	for (var k in options) {
-		if (options.hasOwnProperty(k) && k !== 'requireRecWrapper')
-			recursiveOptions[k] = options[k];
-	}
+    var recursiveOptions = {};
+    for (var k in options) {
+      if (options.hasOwnProperty(k) && k !== 'requireRecWrapper')
+        recursiveOptions[k] = options[k];
+    }
 
-	/* if rootCategory and recursiveCategory are the same, we don't want to call
-	 * addRecCatWrapped becasue half of the candidates will have a root node with
-	 * only one child, which will be of the same category, ie. {i {i (...) (...)}}
-	 */
-	var rootlessCand = gen(leaves, recursiveOptions)
-	if(options.rootCategory !== options.recursiveCategory){
-		rootlessCand = addRecCatWrapped(gen(leaves, recursiveOptions), options);
-	}
+    /* if rootCategory and recursiveCategory are the same, we don't want to call
+     * addRecCatWrapped becasue half of the candidates will have a root node with
+     * only one child, which will be of the same category, ie. {i {i (...) (...)}}
+     */
+    var rootlessCand = gen(leaves, recursiveOptions)
+    if (options.rootCategory !== options.recursiveCategory) {
+      rootlessCand = addRecCatWrapped(gen(leaves, recursiveOptions), options);
+    }
 
-	var candidates = [];
-	for(var i=0; i<rootlessCand.length; i++){
-		var pRoot = wrapInRootCat(rootlessCand[i], options);
-		if (!pRoot)
-			continue;
-		if (options.obeysHeadedness && !obeysHeadedness(pRoot))
-			continue;
-		
-		candidates.push([sTree, pRoot]);
-	}
-	return candidates;
-}
-
-/* Function to check if a tree obeys headedness. Each node must either be be
- * terminal or have at least one child of the category immidately below its own
- * on the prosodic hierarch. Otherwise, return false. Written as a recursive
- * function, basically a constraint.
- */
-function obeysHeadedness(tree){
-	//inner function
-	function nodeIsHeaded(node) {
-		/* Function to check if a node is headed. Relies on the prosodic hierarchy being
-		 * properly defined. Returns true iff 
-		 * a. one of the node's children is of the category directly below its own category *    on the prosodic hierarchy,
-		 * b. one of the node's descendants is of the same category as the node
-		 * c. the node is terminal.
-		 */
-		var children = node.children;
-		//vacuously true if node is terminal
-		if (!children)
-			return true;
-		for (var i = 0; i < children.length; i++)
-			if (children[i].cat === pCat.nextLower(node.cat) 
-			|| children[i].cat === node.cat){
-				return true;
-			}
-			return false;
-	}
-
-	//outer function
-	//first, check the parent node
-	if (!nodeIsHeaded(tree))
-		return false;
-	//return false if one of the children does not obey headedness
-	if (tree.children){
-		for (var x = 0; x<tree.children.length; x++){
-			if (!obeysHeadedness(tree.children[x])) //recursive function call
-				return false;
-		}
-	}
-	//if we get this far, the tree obeys headedness
-	return true;
-}
-
-function obeysExhaustivity(cat, children) {
-	for (var i = 0; i < children.length; i++)
-		if (cat !== children[i].cat && pCat.nextLower(cat) !== children[i].cat){
-			return false;
-		}
-	return true;
-}
-
-function wrapInRootCat(candidate, options){
-	if (options && options.obeysExhaustivity){ // check that options.obeysExhaustivity is defined
-		if(typeof options.obeysExhaustivity ==="boolean" && options.obeysExhaustivity && !obeysExhaustivity(options.rootCategory, candidate)){
-			return null;
-		}
-		else if (options.obeysExhaustivity instanceof Array && options.obeysExhaustivity.indexOf(options.rootCategory)>=0 && !obeysExhaustivity(options.rootCategory, candidate)){
-			return null;
-		}
-	}
-
-	if(candidate.length > 2 && options.rootCategory === candidate[0].cat){
-		console.log(candidate, options.rootCategory);
-		return null;
-	}
-	//if we get here, there aren't any relevant exhaustivity violations
-	return {id: 'root', cat: options.rootCategory, children: candidate};
-}
-
-/*Conceptually, returns all possible parenthesizations of leaves that don't
-*	have a set of parentheses enclosing all of the leaves
-* Format: returns an array of parenthesizations, where each parenthesization
-*	is an array of children, where each child is
-*	either a phi node (with descendant nodes attached) or a leaf
-* Options:
-*/
-function gen(leaves, options){
-	var candidates = [];	//each candidate will be an array of siblings
-	if(!(leaves instanceof Array))
-		throw new Error(leaves+" is not a list of leaves.");
-
-	//Base case: 0 leaves
-	if(leaves.length === 0){
-		candidates.push([]);
-		return candidates;
-	}
-
-	//Recursive case: at least 1 word. Consider all candidates where the first i words are grouped together
-	for(var i = 1; i <= leaves.length; i++){
-
-		var rightsides = addRecCatWrapped(gen(leaves.slice(i, leaves.length), options), options);
-
-		//Case 1: the first i leaves attach directly to parent (no phi wrapping)
-
-		var leftside = leaves.slice(0,i);
-
-		// for case 1, we don't need to check the left side for nonrecursivity, because it's all leaves
-
-		//Combine the all-leaf leftside with all the possible rightsides that have a phi at their left edge (or are empty)
-		for(var j = 0; j<rightsides.length; j++){
-			var firstRight = rightsides[j][0];
-			if(!rightsides[j].length || firstRight.children && firstRight.children.length)
-			{
-				var cand = leftside.concat(rightsides[j]);
-				candidates.push(cand);
-			}
-		}
-
-
-
-		//Case 2: the first i words are wrapped in a phi
-		if(i<leaves.length){
-			if(options.noUnary && i<2){
-				continue;
-				//Don't generate any candidates where the first terminal is in a phi by itself.
-			}
-			var phiLeftsides = gen(leaves.slice(0,i), options);
-			for(var k = 0; k<phiLeftsides.length; k++)
-			{
-				var phiNode = wrapInRecCat(phiLeftsides[k], options);
-				if (!phiNode){
-					continue;
-				}
-				var leftside = [phiNode];
-
-				for(var j = 0; j<rightsides.length; j++)
-				{
-					cand = leftside.concat(rightsides[j]);
-					candidates.push(cand);
-				}
-			}
-		}
-
-	}
-
-	return candidates;
-}
-
-function wrapInRecCat(candidate, options){
-	// Check for Exhaustivity violations below the phi, if phi is listed as one of the exhaustivity levels to check
-	if (options && options.obeysExhaustivity){
-		if ((typeof options.obeysExhaustivity === "boolean" || options.obeysExhaustivity.indexOf(options.recursiveCategory)>=0) && !obeysExhaustivity(options.recursiveCategory, candidate))
-			return null;
-	}
-	if (options && options.obeysNonrecursivity)
-		for (var i = 0; i < candidate.length; i++)
-			if (candidate[i].cat === options.recursiveCategory)
-				return null;
-
-	if (candidate.length<2 && options.recursiveCategory === candidate[0].cat){
-		return null;
-	}
-	return {id: options.recursiveCategory+(options.counters.recNum++), cat: options.recursiveCategory, children: candidate};
-}
-
-//Takes a list of candidates and doubles it to root each of them in a phi
-//If options.noUnary, skip wrapInRecCating candidates that are only 1 terminal long
-function addRecCatWrapped(candidates, options){
-	var origLen = candidates.length;
-	var result = [];
-	if (!options.requireRecWrapper) {
-		result = candidates;
-	}
-	for(var i=0; i<origLen; i++){
-		var candLen = candidates[i].length;
-		if(candLen) {
-			if(options.noUnary && candLen == 1){
+    var candidates = [];
+    for (var i = 0; i < rootlessCand.length; i++) {
+      var pRoot = wrapInRootCat(rootlessCand[i], options);
+      if (!pRoot)
+        continue;
+      if (options.obeysHeadedness && !obeysHeadedness(pRoot))
+        continue;
+      if (options.maxBranching && ternaryNodes(pRoot, options.maxBranching)) {
 				continue;
 			}
-			var phiNode = wrapInRecCat(candidates[i], options);
-			if (!phiNode){
-				continue;
-			}
-			result.push([phiNode]);
-		}
-	}
-	return result;
-}
+      candidates.push([sTree, pRoot]);
+    }
+
+    return candidates;
+  }
+
+  /* Function to check if a tree obeys headedness. Each node must either be be
+   * terminal or have at least one child of the category immidately below its own
+   * on the prosodic hierarch. Otherwise, return false. Written as a recursive
+   * function, basically a constraint.
+   */
+  function obeysHeadedness(tree) {
+    //inner function
+    function nodeIsHeaded(node) {
+      /* Function to check if a node is headed. Relies on the prosodic hierarchy being
+       * properly defined. Returns true iff
+       * a. one of the node's children is of the category directly below its own category *    on the prosodic hierarchy,
+       * b. one of the node's descendants is of the same category as the node
+       * c. the node is terminal.
+       */
+      var children = node.children;
+      //vacuously true if node is terminal
+      if (!children)
+        return true;
+      for (var i = 0; i < children.length; i++)
+        if (children[i].cat === pCat.nextLower(node.cat) ||
+          children[i].cat === node.cat) {
+          return true;
+        }
+      return false;
+    }
+
+    //outer function
+    //first, check the parent node
+    if (!nodeIsHeaded(tree))
+      return false;
+    //return false if one of the children does not obey headedness
+    if (tree.children) {
+      for (var x = 0; x < tree.children.length; x++) {
+        if (!obeysHeadedness(tree.children[x])) //recursive function call
+          return false;
+      }
+    }
+    //if we get this far, the tree obeys headedness
+    return true;
+  }
+
+  function obeysExhaustivity(cat, children) {
+    for (var i = 0; i < children.length; i++)
+      if (cat !== children[i].cat && pCat.nextLower(cat) !== children[i].cat) {
+        return false;
+      }
+    return true;
+  }
+
+  function wrapInRootCat(candidate, options) {
+    if (options && options.obeysExhaustivity) { // check that options.obeysExhaustivity is defined
+      if (typeof options.obeysExhaustivity === "boolean" && options.obeysExhaustivity && !obeysExhaustivity(options.rootCategory, candidate)) {
+        return null;
+      } else if (options.obeysExhaustivity instanceof Array && options.obeysExhaustivity.indexOf(options.rootCategory) >= 0 && !obeysExhaustivity(options.rootCategory, candidate)) {
+        return null;
+      }
+    }
+
+    if (candidate.length > 2 && options.rootCategory === candidate[0].cat) {
+      console.log(candidate, options.rootCategory);
+      return null;
+    }
+    //if we get here, there aren't any relevant exhaustivity violations
+    return {
+      id: 'root',
+      cat: options.rootCategory,
+      children: candidate
+    };
+  }
+
+  /*Conceptually, returns all possible parenthesizations of leaves that don't
+   *	have a set of parentheses enclosing all of the leaves
+   * Format: returns an array of parenthesizations, where each parenthesization
+   *	is an array of children, where each child is
+   *	either a phi node (with descendant nodes attached) or a leaf
+   * Options:
+   */
+  function gen(leaves, options) {
+    var candidates = []; //each candidate will be an array of siblings
+    if (!(leaves instanceof Array))
+      throw new Error(leaves + " is not a list of leaves.");
+
+    //Base case: 0 leaves
+    if (leaves.length === 0) {
+      candidates.push([]);
+      return candidates;
+    }
+
+    //Recursive case: at least 1 word. Consider all candidates where the first i words are grouped together
+    for (var i = 1; i <= leaves.length; i++) {
+
+      var rightsides = addRecCatWrapped(gen(leaves.slice(i, leaves.length), options), options);
+
+      //Case 1: the first i leaves attach directly to parent (no phi wrapping)
+
+      var leftside = leaves.slice(0, i);
+
+      // for case 1, we don't need to check the left side for nonrecursivity, because it's all leaves
+
+      //Combine the all-leaf leftside with all the possible rightsides that have a phi at their left edge (or are empty)
+      for (var j = 0; j < rightsides.length; j++) {
+        var firstRight = rightsides[j][0];
+        if (!rightsides[j].length || firstRight.children && firstRight.children.length) {
+          var cand = leftside.concat(rightsides[j]);
+          candidates.push(cand);
+        }
+      }
+
+
+
+      //Case 2: the first i words are wrapped in a phi
+      if (i < leaves.length) {
+        if (options.noUnary && i < 2) {
+          continue;
+          //Don't generate any candidates where the first terminal is in a phi by itself.
+        }
+        var phiLeftsides = gen(leaves.slice(0, i), options);
+        for (var k = 0; k < phiLeftsides.length; k++) {
+          var phiNode = wrapInRecCat(phiLeftsides[k], options);
+          if (!phiNode) {
+            continue;
+          }
+          var leftside = [phiNode];
+
+          for (var j = 0; j < rightsides.length; j++) {
+            cand = leftside.concat(rightsides[j]);
+            candidates.push(cand);
+          }
+        }
+      }
+
+    }
+
+    return candidates;
+  }
+
+  function wrapInRecCat(candidate, options) {
+    // Check for Exhaustivity violations below the phi, if phi is listed as one of the exhaustivity levels to check
+    if (options && options.obeysExhaustivity) {
+      if ((typeof options.obeysExhaustivity === "boolean" || options.obeysExhaustivity.indexOf(options.recursiveCategory) >= 0) && !obeysExhaustivity(options.recursiveCategory, candidate))
+        return null;
+    }
+    if (options && options.obeysNonrecursivity)
+      for (var i = 0; i < candidate.length; i++)
+        if (candidate[i].cat === options.recursiveCategory)
+          return null;
+
+    if (candidate.length < 2 && options.recursiveCategory === candidate[0].cat) {
+      return null;
+    }
+    return {
+      id: options.recursiveCategory + (options.counters.recNum++),
+      cat: options.recursiveCategory,
+      children: candidate
+    };
+  }
+
+  //Takes a list of candidates and doubles it to root each of them in a phi
+  //If options.noUnary, skip wrapInRecCating candidates that are only 1 terminal long
+  function addRecCatWrapped(candidates, options) {
+    var origLen = candidates.length;
+    var result = [];
+    if (!options.requireRecWrapper) {
+      result = candidates;
+    }
+    for (var i = 0; i < origLen; i++) {
+      var candLen = candidates[i].length;
+      if (candLen) {
+        if (options.noUnary && candLen == 1) {
+          continue;
+        }
+        var phiNode = wrapInRecCat(candidates[i], options);
+        if (!phiNode) {
+          continue;
+        }
+        result.push([phiNode]);
+      }
+    }
+    return result;
+  }
 
 })();
 
-function containsClitic(x){
-	return x.indexOf("clitic")>-1;
+function containsClitic(x) {
+  return x.indexOf("clitic") > -1;
 }
 
-function generateWordOrders(wordList, clitic){
-	if(typeof wordList === 'string'){
-		var cliticTagIndex = wordList.indexOf("-clitic");
-		if(cliticTagIndex > 0){
-			var wordListParts = wordList.split("-clitic");
-			wordList = wordListParts[0]+wordListParts[1];
-		}
-		wordList = wordList.split(' ');
-	}
-	//Find the clitic to move around
-	var cliticIndex = wordList.indexOf(clitic);
-	if(cliticIndex < 0)
-		throw new Error("The provided clitic "+clitic+" was not found in the word list");
-	//Slice the clitic out
-	var beforeClitic = wordList.slice(0,cliticIndex);
-	var afterClitic = wordList.slice(cliticIndex+1, wordList.length);
-	var cliticlessWords = beforeClitic.concat(afterClitic);
+function generateWordOrders(wordList, clitic) {
+  if (typeof wordList === 'string') {
+    var cliticTagIndex = wordList.indexOf("-clitic");
+    if (cliticTagIndex > 0) {
+      var wordListParts = wordList.split("-clitic");
+      wordList = wordListParts[0] + wordListParts[1];
+    }
+    wordList = wordList.split(' ');
+  }
+  //Find the clitic to move around
+  var cliticIndex = wordList.indexOf(clitic);
+  if (cliticIndex < 0)
+    throw new Error("The provided clitic " + clitic + " was not found in the word list");
+  //Slice the clitic out
+  var beforeClitic = wordList.slice(0, cliticIndex);
+  var afterClitic = wordList.slice(cliticIndex + 1, wordList.length);
+  var cliticlessWords = beforeClitic.concat(afterClitic);
 
-	var orders = new Array(wordList.length);
-	for(var i = 0; i <= cliticlessWords.length; i++){
-		beforeClitic = cliticlessWords.slice(0,i);
-		afterClitic = cliticlessWords.slice(i, cliticlessWords.length);
-		orders[i] = beforeClitic.concat([clitic+"-clitic"], afterClitic);
-	}
-	return orders;
+  var orders = new Array(wordList.length);
+  for (var i = 0; i <= cliticlessWords.length; i++) {
+    beforeClitic = cliticlessWords.slice(0, i);
+    afterClitic = cliticlessWords.slice(i, cliticlessWords.length);
+    orders[i] = beforeClitic.concat([clitic + "-clitic"], afterClitic);
+  }
+  return orders;
 }
 
 /* Arguments:
@@ -4367,42 +4420,102 @@ function generateWordOrders(wordList, clitic){
 
    Caveat: If there are multiple clitics, only the first will be moved.
 */
-function GENwithCliticMovement(stree, words, options){
-	// Identify the clitic of interest
-	var clitic = '';
-	// First try to read words and clitic off the tree
-	var leaves = getLeaves(stree);
-	if(leaves.length > 0 && leaves[0].id){
-		//console.log(leaves);
-		var leaf = 0;
-		while(clitic === '' && leaf < leaves.length){
-			if(leaves[leaf].cat==="clitic")
-				clitic = leaves[leaf].id;
-			leaf++;
-		}
-		if(clitic === ''){
-			console.warn("GENWithCliticMovement was called but no node in stree has category clitic was provided in stree");
-			console.log(stree);
-			return GEN(stree, words, options);
-			//throw new Error("GENWithCliticMovement was called but no node in stree has category clitic was provided in stree");
+function GENwithCliticMovement(stree, words, options) {
+  // Identify the clitic of interest
+  var clitic = '';
+  // First try to read words and clitic off the tree
+  var leaves = getLeaves(stree);
+  if (leaves.length > 0 && leaves[0].id) {
+    //console.log(leaves);
+    var leaf = 0;
+    while (clitic === '' && leaf < leaves.length) {
+      if (leaves[leaf].cat === "clitic")
+        clitic = leaves[leaf].id;
+      leaf++;
+    }
+    if (clitic === '') {
+      console.warn("GENWithCliticMovement was called but no node in stree has category clitic was provided in stree");
+      console.log(stree);
+      return GEN(stree, words, options);
+      //throw new Error("GENWithCliticMovement was called but no node in stree has category clitic was provided in stree");
 
+    }
+  }
+  //Otherwise, get the clitic from words
+  else {
+    // Make sure words is an array
+    if (typeof words === "string") {
+      words = words.split(' ');
+    }
+    var x = words.find(containsClitic);
+    if (!x) { //x is undefined if no word in "words" contains "clitic"
+      console.warn("GENWithCliticMovement was called but no node in stree has category clitic was provided in stree");
+      console.log(stree);
+      return GEN(stree, words, options);
+    }
+    clitic = x.split('-clitic')[0];
+    words[words.indexOf(x)] = clitic;
+  }
+
+  //Make sure words is defined before using it to generate word orders
+  if (!words || words.length < leaves.length) {
+    words = new Array(leaves.length);
+    for (var i in leaves) {
+      words[i] = leaves[i].id;
+    }
+
+  }
+  var wordOrders = generateWordOrders(words, clitic);
+  var candidateSets = new Array(wordOrders.length);
+  for (var i = 0; i < wordOrders.length; i++) {
+    candidateSets[i] = GEN(stree, wordOrders[i], options);
+  }
+  //candidateSets;
+  return [].concat.apply([], candidateSets);
+}
+
+function GENwithPermutation(stree, words, options){
+
+	var leaves = getLeaves(stree);
+	var permutations = [];
+
+	//function for swapping elements in an array, takes array and indexes of elements to be swapped
+	function swap(array, index1, index2){
+		var swapped = [];
+		for(var i = 0; i<array.length; i++){
+			if(i === index1){
+				swapped.push(array[index2]);
+			}
+			else if(i === index2){
+				swapped.push(array[index1]);
+			}
+			else{
+				swapped.push(array[i]);
+			}
 		}
+		return swapped;
 	}
-	//Otherwise, get the clitic from words
-	else
-	{
-		// Make sure words is an array
-		if(typeof words === "string"){
-			words = words.split(' ');
+
+	//actual implementation of Heap's algorithm
+
+	function allOrdersInner(innerList, k){
+		if(k == 1){
+			permutations.push(innerList);
 		}
-		var x = words.find(containsClitic);
-		if(!x){ //x is undefined if no word in "words" contains "clitic"
-			console.warn("GENWithCliticMovement was called but no node in stree has category clitic was provided in stree");
-			console.log(stree);
-			return GEN(stree, words, options);
+		else{
+			allOrdersInner(innerList, k-1); //recursive function call
+
+			for(var i = 0; i < k-1; i++){
+				if(k%2 === 0){
+					//swap innerList[i] with innerList[k-1]
+					allOrdersInner(swap(innerList, 0, k-1), k-1); //recursive function call
+				}
+				else {
+					//swap innerList[0] with innerList[k-1]
+					allOrdersInner(swap(innerList, i, k-1), k-1); //recursive function call
+				}
+			}
 		}
-		clitic = x.split('-clitic')[0];
-		words[words.indexOf(x)] = clitic;
 	}
 
 	//Make sure words is defined before using it to generate word orders
@@ -4411,12 +4524,12 @@ function GENwithCliticMovement(stree, words, options){
 		for(var i in leaves){
 			words[i] = leaves[i].id;
 		}
-		
+		//console.log(words);
 	}
-	var wordOrders = generateWordOrders(words, clitic);
-	var candidateSets = new Array(wordOrders.length);
-	for(var i = 0; i<wordOrders.length; i++){
-		candidateSets[i] = GEN(stree, wordOrders[i], options);
+	allOrdersInner(words, words.length);
+	var candidateSets = [];
+	for(var i = 0; i<permutations.length; i++){
+		candidateSets[i] = GEN(stree, permutations[i], options);
 	}
 	//candidateSets;
 	return [].concat.apply([], candidateSets);
@@ -4454,7 +4567,7 @@ window.GEN = function(sTree, words, options){
 	 * But if they are not, the default setting code throws unhelpful errors.
 	 * The finally block throws more helpful errors and alert boxes instead
 	 */
-	
+
 	//a flag for whether the user has included a novel category undefined in categoryHierarchy
 	var novelCategories = false;
 	try{
@@ -4536,7 +4649,7 @@ window.GEN = function(sTree, words, options){
 		recNum: 0
 	}
 	for(var i=0; i<words.length; i++){
-		leaves.push(wrapInLeafCat(words[i], options.terminalCategory));
+		leaves.push(wrapInLeafCat(words[i], options.terminalCategory, options.syntactic));
 	}
 
 	return GEN_impl(sTree, leaves, options);
@@ -4563,12 +4676,12 @@ function deduplicateTerminals(terminalList) {
 	return dedupedTerminals;
 }
 
-function wrapInLeafCat(word, cat){
+function wrapInLeafCat(word, cat, syntactic){
 	var myCat = cat || 'w';
 	var wordId = word;
 	var isClitic = word.indexOf('-clitic')>=0;
 	if (isClitic){
-		myCat = 'syll';
+		myCat = syntactic ? 'clitic' : 'syll'; //syntactic tree vs prosodic trees
 		wordId = wordId.split('-clitic')[0];
 	}
 	var wordObj = {cat: myCat};
@@ -4584,7 +4697,8 @@ function wrapInLeafCat(word, cat){
 	}
 	wordObj.id = wordId;
 	return wordObj;
-}/* Function that calls GEN from candidategenerator.js to generate syntactic input trees
+}
+/* Function that calls GEN from candidategenerator.js to generate syntactic input trees
 *  rather than output prosodic trees.
 *  By default, this creates unary and binary-branching strees rooted in xp, with all terminals mapped to x0.
 *  Intermediate levels are xps, and structures of the form [x0 x0] are excluded as being
@@ -5140,6 +5254,11 @@ window.addEventListener('load', function(){
 			genOptions['obeysExhaustivity'] = exCats;
 		}
 
+		// if max branching option is selected
+		if(genOptions['maxBranching']){
+			genOptions['maxBranching'] = spotForm.maxBranchingValue.value;
+		}
+
 		//plug correct value into category options
 		genOptions.rootCategory = spotForm['genOptions-rootCategory'].value;
 		genOptions.recursiveCategory = spotForm['genOptions-recursiveCategory'].value;
@@ -5201,7 +5320,7 @@ window.addEventListener('load', function(){
 			//warn user about possibly excessive numbers of candidates
 			if (genOptions['cliticMovement'] && (!genOptions['noUnary'] && (getLeaves(sTree).length >= 5 || pString.split(" ").length >= 5))
 											 || (genOptions['noUnary'] && (getLeaves(sTree).length >= 7 || pString.split(" ").length >= 7))){
-				if(!confirm("You have selected GEN settings that allow clitic reordering, and included a sentence of ".concat( pString.split(" ").length.toString()," terminals. This GEN may yield more than 10K candidates. To reduce the number of candidates, consider enforcing non-recursivity, exhaustivity, and/or branchingness for intermediate prosodic nodes. Do you wish to proceed with these settings?"))){
+				if(!confirm("You have selected GEN settings that allow movement, and included a sentence of ".concat( pString.split(" ").length.toString()," terminals. This GEN may yield more than 10K candidates. To reduce the number of candidates, consider enforcing non-recursivity, exhaustivity, and/or branchingness for intermediate prosodic nodes. Do you wish to proceed with these settings?"))){
 					throw new Error("clitic movement with too many terminals");
 				}
 			}
@@ -5212,7 +5331,8 @@ window.addEventListener('load', function(){
 			}
 
 			if (genOptions['cliticMovement']){
-				var candidateSet = GENwithCliticMovement(sTree, pString, genOptions);
+			//	var candidateSet = GENwithCliticMovement(sTree, pString, genOptions);
+				var candidateSet = globalNameOrDirect(spotForm['genOptions-movement'].value)(sTree, pString, genOptions);
 			}
 			else{
 				var candidateSet = GEN(sTree, pString, genOptions);
@@ -5261,6 +5381,15 @@ window.addEventListener('load', function(){
 
 		}
 	});
+	document.getElementById('movementOptions').addEventListener('click', function(){
+		var movementSpecifications = document.getElementById('movementSpecification');
+		if (movementSpecifications.style.display === 'none' && document.getElementById('movementOptions').checked){
+			movementSpecifications.style.display = 'block';
+		}
+		else{
+			movementSpecifications.style.display = 'none';
+		}
+	})
 
 	//show extra boxes for annotated with tones on click
 	//console.log(document.getElementById('annotatedWithTones'))
@@ -5287,14 +5416,7 @@ window.addEventListener('load', function(){
 
 	//Open the tree making GUI
 	document.getElementById('goButton').addEventListener('click', function(){
-		document.getElementById('treeUI').style.display = 'block';
-		document.getElementById('goButton').style.backgroundColor = 'white';
-		document.getElementById('goButton').style.borderColor = '#3A5370';
-		if(document.getElementById('inputOptions').style.display == 'block') {
-			document.getElementById('inputOptions').style.display = 'none';
-			document.getElementById('inputButton').style.backgroundColor = '#d0d8e0';
-			document.getElementById('inputButton').style.borderColor = '#d0d8e0';
-		}
+		changeInputTabs('inputButton', 'goButton');
 	});
 
 	function refreshHtmlTree(treeIndex) {
@@ -5327,14 +5449,7 @@ window.addEventListener('load', function(){
 
 	// automatically generate syntax button
 	document.getElementById('inputButton').addEventListener('click', function(){
-		document.getElementById('inputOptions').style.display = 'block';
-		document.getElementById('inputButton').style.backgroundColor = 'white';
-		document.getElementById('inputButton').style.borderColor = '#3A5370';
-		if(document.getElementById('treeUI').style.display == 'block') {
-			document.getElementById('treeUI').style.display = 'none';
-			document.getElementById('goButton').style.backgroundColor = '#d0d8e0';
-			document.getElementById('goButton').style.borderColor = '#d0d8e0';
-		}
+		changeInputTabs('goButton', 'inputButton');
 	});
 
 	// show and display addClitics options
@@ -5720,6 +5835,36 @@ function showMore(constraintType) {
     x.style.display = "block";
 		y.innerHTML = "Show less...";
   }
+}
+
+function showMaxBranching() {
+	var text = document.getElementById('maxBranchingText');
+	if(text.style.display === 'none') {
+		text.style.display = 'inline';
+	}
+	else if(text.style.display === 'inline') {
+		text.style.display = 'none';
+	}
+}
+
+function changeInputTabs(from, to) {
+	var fromButton = 	document.getElementById(from);
+	var toButton = document.getElementById(to);
+	// if from === 'inputButton'
+	var show = 	document.getElementById('treeUI');
+	var hide = document.getElementById('inputOptions');
+	if(from === 'goButton') {
+		show = 	document.getElementById('inputOptions');
+		hide = document.getElementById('treeUI');
+	}
+	show.style.display = 'block';
+	toButton.style.backgroundColor = 'white';
+	toButton.style.borderColor = '#3A5370';
+	if(hide.style.display === 'block') {
+		hide.style.display = 'none';
+		fromButton.style.backgroundColor = '#d0d8e0';
+		fromButton.style.borderColor = '#d0d8e0';
+	}
 }
 if (!Element.prototype.matches)
 		Element.prototype.matches = Element.prototype.msMatchesSelector || 

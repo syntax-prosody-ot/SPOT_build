@@ -5,13 +5,13 @@
 
 function alignMorpheme(stree, ptree, clitic, direction){
 	if(ptree.cat !== "i" && ptree.cat !== 'iota'){
-        console.warn("You are calling alignLeftClitic on a tree that is not rooted in i");
+				displayWarning("You are calling alignLeftClitic on a tree that is not rooted in i");
     }
     clitic = clitic.split(';');
     var leaves = getLeaves(ptree);
     var cliticPos = leaves.findIndex(function(element){return clitic.indexOf(element.id) >= 0;});
     if(cliticPos < 0){
-        console.warn("The specified clitic "+clitic+" was not found in this tree");
+				displayWarning("The specified clitic "+clitic+" was not found in this tree");
         cliticPos = 0;
     }
     if (direction == "left"){
@@ -20,7 +20,7 @@ function alignMorpheme(stree, ptree, clitic, direction){
     else{
     	return leaves.length - cliticPos - 1;
     }
-    
+
 }
 
 /* For the specified lexical item(s), which are assumed to be clitics (category is not checked),
@@ -40,10 +40,6 @@ function alignLeftMorpheme(stree, ptree, clitic){
 function alignRightMorpheme(stree, ptree, clitic){
     return alignMorpheme(stree, ptree, clitic,"right");
 }
-
-
-
-
 /* Assign a violation for every node in sTree of category sCat
 whose d edge is not aligned with the d edge of a node in pTree
 of the prosodic category corresponding to s
@@ -158,6 +154,19 @@ function alignRightPS(sTree, pTree, cat, options){
 	return alignPS(sTree, pTree, cat, 'right', options);
 }
 
+// custom align functions
+function alignLeftCustom(sTree, pTree, cat, options){
+	return alignSP(sTree, pTree, cat, 'left', options);
+}
+function alignRightCustom(sTree, pTree, cat, options){
+	return alignSP(sTree, pTree, cat, 'right', options);
+}
+function alignLeftPSCustom(sTree, pTree, cat, options){
+	return alignPS(sTree, pTree, cat, 'left', options);
+}
+function alignRightPSCustom(sTree, pTree, cat, options){
+	return alignPS(sTree, pTree, cat, 'right', options);
+}
 function alignFocus(sTree, pTree, cat, d){
 	var getEdge = (d==="left") ? getLeftEdge : getRightEdge;
 	var vCount = 0;
@@ -2167,7 +2176,6 @@ function noShift(stree, ptree, cat) {
     //increment outer counter and check the next word
     j++;
   }
-
   return shiftFound ? 1 : 0;
 }
 
@@ -2283,10 +2291,15 @@ function nonRecTruckenbrodt(s, parent, cat){
 * TODO Modify this so that it doesn't make all the assumptions above concerning the relationship of x and y.
 */
 function leafDifferenceSize(x,y){
-	if(!(x instanceof Array) || !(y instanceof Array)){
-		console.log("x: "+x);
-		console.log("y: "+y);
-		throw new Error("Either x or y is not an array");
+	try {
+		if(!(x instanceof Array) || !(y instanceof Array)){
+			console.log("x: "+x);
+			console.log("y: "+y);
+			throw new Error("Either x or y is not an array");
+		}
+	}
+	catch(err) {
+		displayError(err.message, err);
 	}
 	return y.length-x.length;
 }

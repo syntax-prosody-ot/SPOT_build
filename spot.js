@@ -5,13 +5,13 @@
 
 function alignMorpheme(stree, ptree, clitic, direction){
 	if(ptree.cat !== "i" && ptree.cat !== 'iota'){
-        console.warn("You are calling alignLeftClitic on a tree that is not rooted in i");
+				displayWarning("You are calling alignLeftClitic on a tree that is not rooted in i");
     }
     clitic = clitic.split(';');
     var leaves = getLeaves(ptree);
     var cliticPos = leaves.findIndex(function(element){return clitic.indexOf(element.id) >= 0;});
     if(cliticPos < 0){
-        console.warn("The specified clitic "+clitic+" was not found in this tree");
+				displayWarning("The specified clitic "+clitic+" was not found in this tree");
         cliticPos = 0;
     }
     if (direction == "left"){
@@ -20,7 +20,7 @@ function alignMorpheme(stree, ptree, clitic, direction){
     else{
     	return leaves.length - cliticPos - 1;
     }
-    
+
 }
 
 /* For the specified lexical item(s), which are assumed to be clitics (category is not checked),
@@ -40,10 +40,6 @@ function alignLeftMorpheme(stree, ptree, clitic){
 function alignRightMorpheme(stree, ptree, clitic){
     return alignMorpheme(stree, ptree, clitic,"right");
 }
-
-
-
-
 /* Assign a violation for every node in sTree of category sCat
 whose d edge is not aligned with the d edge of a node in pTree
 of the prosodic category corresponding to s
@@ -158,6 +154,19 @@ function alignRightPS(sTree, pTree, cat, options){
 	return alignPS(sTree, pTree, cat, 'right', options);
 }
 
+// custom align functions
+function alignLeftCustom(sTree, pTree, cat, options){
+	return alignSP(sTree, pTree, cat, 'left', options);
+}
+function alignRightCustom(sTree, pTree, cat, options){
+	return alignSP(sTree, pTree, cat, 'right', options);
+}
+function alignLeftPSCustom(sTree, pTree, cat, options){
+	return alignPS(sTree, pTree, cat, 'left', options);
+}
+function alignRightPSCustom(sTree, pTree, cat, options){
+	return alignPS(sTree, pTree, cat, 'right', options);
+}
 function alignFocus(sTree, pTree, cat, d){
 	var getEdge = (d==="left") ? getLeftEdge : getRightEdge;
 	var vCount = 0;
@@ -2167,7 +2176,6 @@ function noShift(stree, ptree, cat) {
     //increment outer counter and check the next word
     j++;
   }
-
   return shiftFound ? 1 : 0;
 }
 
@@ -2283,10 +2291,15 @@ function nonRecTruckenbrodt(s, parent, cat){
 * TODO Modify this so that it doesn't make all the assumptions above concerning the relationship of x and y.
 */
 function leafDifferenceSize(x,y){
-	if(!(x instanceof Array) || !(y instanceof Array)){
-		console.log("x: "+x);
-		console.log("y: "+y);
-		throw new Error("Either x or y is not an array");
+	try {
+		if(!(x instanceof Array) || !(y instanceof Array)){
+			console.log("x: "+x);
+			console.log("y: "+y);
+			throw new Error("Either x or y is not an array");
+		}
+	}
+	catch(err) {
+		displayError(err.message, err);
 	}
 	return y.length-x.length;
 }
@@ -4154,8 +4167,7 @@ function loadAnalysis(file){
       }
       catch(err){
         //error handeling:
-        console.error("File does not follow SPOT format:");
-        console.error(err);
+        displayError('File does not follow SPOT format: ' + err.message, err);
         return;
       }
     }
@@ -4254,8 +4266,8 @@ function loadAnalysis(file){
       }
     }
 
-    if (candidate.length > 2 && options.rootCategory === candidate[0].cat) {
-      console.log(candidate, options.rootCategory);
+    if (candidate.length < 2 && options.rootCategory === candidate[0].cat) {
+      //console.log(candidate, options.rootCategory);
       return null;
     }
     //if we get here, there aren't any relevant exhaustivity violations
@@ -4275,8 +4287,13 @@ function loadAnalysis(file){
    */
   function gen(leaves, options) {
     var candidates = []; //each candidate will be an array of siblings
-    if (!(leaves instanceof Array))
-      throw new Error(leaves + " is not a list of leaves.");
+    try {
+      if (!(leaves instanceof Array))
+        throw new Error(leaves + " is not a list of leaves.");
+    }
+    catch(err) {
+      displayError(err.message, err);
+    }
 
     //Base case: 0 leaves
     if (leaves.length === 0) {
@@ -4383,6 +4400,7 @@ function containsClitic(x) {
   return x.indexOf("clitic") > -1;
 }
 
+
 function generateWordOrders(wordList, clitic) {
   if (typeof wordList === 'string') {
     var cliticTagIndex = wordList.indexOf("-clitic");
@@ -4394,8 +4412,13 @@ function generateWordOrders(wordList, clitic) {
   }
   //Find the clitic to move around
   var cliticIndex = wordList.indexOf(clitic);
-  if (cliticIndex < 0)
-    throw new Error("The provided clitic " + clitic + " was not found in the word list");
+  try {
+    if (cliticIndex < 0)
+      throw new Error("The provided clitic " + clitic + " was not found in the word list");
+  }
+  catch(err) {
+    displayError(err.message, err);
+  }
   //Slice the clitic out
   var beforeClitic = wordList.slice(0, cliticIndex);
   var afterClitic = wordList.slice(cliticIndex + 1, wordList.length);
@@ -4420,6 +4443,7 @@ function generateWordOrders(wordList, clitic) {
 
    Caveat: If there are multiple clitics, only the first will be moved.
 */
+
 function GENwithCliticMovement(stree, words, options) {
   // Identify the clitic of interest
   var clitic = '';
@@ -4434,7 +4458,7 @@ function GENwithCliticMovement(stree, words, options) {
       leaf++;
     }
     if (clitic === '') {
-      console.warn("GENWithCliticMovement was called but no node in stree has category clitic was provided in stree");
+      displayWarning("You selected GEN settings that move clitics, but one or more input trees do not have a clitic lableled.");
       console.log(stree);
       return GEN(stree, words, options);
       //throw new Error("GENWithCliticMovement was called but no node in stree has category clitic was provided in stree");
@@ -4449,7 +4473,7 @@ function GENwithCliticMovement(stree, words, options) {
     }
     var x = words.find(containsClitic);
     if (!x) { //x is undefined if no word in "words" contains "clitic"
-      console.warn("GENWithCliticMovement was called but no node in stree has category clitic was provided in stree");
+      displayWarning("You selected GEN settings that move clitics, but one or more input trees do not have a clitic lableled.");
       console.log(stree);
       return GEN(stree, words, options);
     }
@@ -4580,17 +4604,17 @@ window.GEN = function(sTree, words, options){
 	}
 	finally{
 		if(options.rootCategory && categoryHierarchy.indexOf(options.rootCategory)<0){
-			alert("Warning:\n"+options.rootCategory+" is not in SPOT's pre-defined prosodic hierarchy (see pCat and sCat in prosodicHierarch.js)");
+			displayWarning(options.rootCategory+" is not in SPOT's pre-defined prosodic hierarchy (see pCat and sCat in prosodicHierarch.js)");
 			novelCategories = true;
 			//throw new Error(options.rootCategory+" is not in SPOT's pre-defined prosodic hierarchy (see pCat in prosodicHierarch.js)");
 		}
 		if(categoryHierarchy.indexOf(options.recursiveCategory)<0){
-			alert("Warning:\n"+options.recursiveCategory+" is not in SPOT's pre-defined prosodic hierarchy (see pCat and sCat in prosodicHierarch.js)");
+			displayWarning(options.recursiveCategory+" is not in SPOT's pre-defined prosodic hierarchy (see pCat and sCat in prosodicHierarch.js)");
 			novelCategories = true;
 			//throw new Error(options.recursiveCategory+" is not in SPOT's pre-defined prosodic hierarchy (see pCat in prosodicHierarch.js)");
 		}
 		if(options.terminalCategory && categoryHierarchy.indexOf(options.terminalCategory)<0){
-			alert("Warning:\n"+options.terminalCategory+" is not in SPOT's pre-defined prosodic hierarchy (see pCat and sCat in prosodicHierarch.js)");
+			displayWarning(options.terminalCategory+" is not in SPOT's pre-defined prosodic hierarchy (see pCat and sCat in prosodicHierarch.js)");
 			novelCategories = true;
 			//throw new Error(options.terminalCategory+" is not in SPOT's pre-defined prosodic hierarchy (see pCat in prosodicHierarch.js)");
 		}
@@ -4598,26 +4622,26 @@ window.GEN = function(sTree, words, options){
 
 	//Warnings for adverse GEN options combinations:
 	if(options.rootCategory === options.recursiveCategory && options.obeysNonrecursivity){
-		console.warn("You have instructed GEN to produce non-recursive trees and to produce trees where the root node and intermediate nodes are of the same category. Some of the trees GEN produces will be recursive.");
+		displayWarning("You have instructed GEN to produce non-recursive trees and to produce trees where the root node and intermediate nodes are of the same category. Some of the trees GEN produces will be recursive.");
 	}
 	if(options.rootCategory === options.terminalCategory && options.obeysNonrecursivity){
-		console.warn("You have instructed GEN to produce non-recursive trees and to produce trees where the root node and terminal nodes are of the same category. All of the trees GEN produces will be recursive.");
+		displayWarning("You have instructed GEN to produce non-recursive trees and to produce trees where the root node and terminal nodes are of the same category. All of the trees GEN produces will be recursive.");
 	}
 	if(options.recursiveCategory === options.terminalCategory && options.obeysNonrecursivity){
-		console.warn("You have instructed GEN to produce non-recursive trees and to produce trees where the intermediate nodes and the terminal nodes are of the same category. You will only get one bracketing.");
+		displayWarning("You have instructed GEN to produce non-recursive trees and to produce trees where the intermediate nodes and the terminal nodes are of the same category. You will only get one bracketing.");
 	}
 
 	//Perform additional checks of layering if novel categories are involved.
 	if(!novelCategories){
 		if(categoryHierarchy.isHigher(options.recursiveCategory, options.rootCategory) || categoryHierarchy.isHigher(options.terminalCategory, options.recursiveCategory)){
-			console.warn("You have instructed GEN to produce trees that do not obey layering. See pCat and sCat in prosodicHierarchy.js");
+			displayWarning("You have instructed GEN to produce trees that do not obey layering. See pCat and sCat in prosodicHierarchy.js");
 		}
 		else{
 			if(options.recursiveCategory !== categoryHierarchy.nextLower(options.rootCategory) && options.recursiveCategory !== options.rootCategory){
-				console.warn(""+options.recursiveCategory+" is not directly below "+options.rootCategory+" in the prosodic hierarchy. None of the resulting trees will be exhaustive because GEN will not generate any "+categoryHierarchy.nextLower(options.rootCategory)+"s. See pCat and sCat in prosodicHierarchy.js");
+				displayWarning(""+options.recursiveCategory+" is not directly below "+options.rootCategory+" in the prosodic hierarchy. None of the resulting trees will be exhaustive because GEN will not generate any "+categoryHierarchy.nextLower(options.rootCategory)+"s. See pCat and sCat in prosodicHierarchy.js");
 			}
 			if(options.terminalCategory !== categoryHierarchy.nextLower(options.recursiveCategory) && options.terminalCategory !== options.recursiveCategory){
-				console.warn(""+options.terminalCategory+" is not directly below "+options.recursiveCategory+" in the prosodic hierarchy. None of the resulting trees will be exhaustive because GEN will not generate any "+categoryHierarchy.nextLower(options.recursiveCategory)+"s. See pCat and sCat in prosodicHierarchy.js");
+				displayWarning(""+options.terminalCategory+" is not directly below "+options.recursiveCategory+" in the prosodic hierarchy. None of the resulting trees will be exhaustive because GEN will not generate any "+categoryHierarchy.nextLower(options.recursiveCategory)+"s. See pCat and sCat in prosodicHierarchy.js");
 			}
 		}
 	}
@@ -4710,18 +4734,18 @@ function wrapInLeafCat(word, cat, syntactic){
 *  - terminalCategory: default = 'x0'
 *  - noAdjacentHeads: are x0 sisters allowed? [x0 x0]. Defaults to true.
 *  - noAdjuncts: are xp sisters allowed? [xp xp]. Defaults to false.
-*  - maxBranching: determines the maximum number of branches that are tolerated in 
+*  - maxBranching: determines the maximum number of branches that are tolerated in
 *    the resulting syntactic trees. Default = 2
-*  - minBranching: determines the maximum number of branches that are tolerated in 
+*  - minBranching: determines the maximum number of branches that are tolerated in
 *    the resulting syntactic trees. Default = 2
-*  - addClitics: 'right' or 'left' determines whether clitics are added on the 
-*    righthand-side or the left; true will default to right. false doesn't add any clitics. 
+*  - addClitics: 'right' or 'left' determines whether clitics are added on the
+*    righthand-side or the left; true will default to right. false doesn't add any clitics.
 *    Default false.
-*  - headSide: 'right', 'left', 'right-strict', 'left-strict'. 
-*    Which side will heads be required to be on, relative to their complements? 
+*  - headSide: 'right', 'left', 'right-strict', 'left-strict'.
+*    Which side will heads be required to be on, relative to their complements?
 *    Also, must heads be at the very edge (strict)?
-* Also has all the options from the underlying output candidate generator -- see 
-* GEN() in candidategenerator.js. Most relevant is probably noUnary which excludes 
+* Also has all the options from the underlying output candidate generator -- see
+* GEN() in candidategenerator.js. Most relevant is probably noUnary which excludes
 * non-branching intermediate nodes.
 */
 function sTreeGEN(terminalString, options)
@@ -4742,6 +4766,12 @@ function sTreeGEN(terminalString, options)
     var sTreeList = autoSTreePairs.map(x=>x[1]);
 
     //Apply filters
+    if(options.allowClitic){
+      var cliticTrees = getCliticTrees(terminalString, options);
+      if(cliticTrees) {
+        sTreeList = sTreeList.concat(cliticTrees);
+      }
+    }
     if(options.addClitics){
         var outsideClitics = sTreeList.map(x => addCliticXP(x, options.addClitics));
         var insideClitics = sTreeList.map(x => addCliticXP(x, options.addClitics, true));
@@ -4778,19 +4808,26 @@ function addCliticXP(sTree, side="right", inside){
     //Make the clitic a daughter of sTree
     if(inside){
         //console.log("inside");
-        if(side==="right"){
-            sisters = sTree.children.concat(cliticXP);
+        try {
+          if(side==="right"){
+              sisters = sTree.children.concat(cliticXP);
+          }
+          else if(side==="left"){
+              sisters = [cliticXP].concat(sTree.children);
+              //console.log(tp);
+          }
+          else{
+              var errorMsg = "addCliticXP(): The provided side " + side + " is not valid. Side must be specified as 'left' or 'right'.";
+              throw new Error(errorMsg)
+          }
         }
-        else if(side==="left"){
-            sisters = [cliticXP].concat(sTree.children);
-            //console.log(tp);
-        }
-        else{
-            throw new Error("addCliticXP(): The provided side ", side," is not valid. Side must be specified as 'left' or 'right'.")
+        catch(err) {
+          displayError(err.message, err);
         }
     }
     //Make the clitic sister to sTree's root, and root the whole thing elsewhere
     else{
+      try {
         var sisters;
         if(side==="right"){
             sisters = [sTree, cliticXP];
@@ -4799,12 +4836,35 @@ function addCliticXP(sTree, side="right", inside){
             sisters = [cliticXP, sTree];
         }
         else{
-            throw new Error("addCliticXP(): The provided side ", side," is not valid. Side must be specified as 'left' or 'right'.")
+            var errorMsg = "addCliticXP(): The provided side " + side + " is not valid. Side must be specified as 'left' or 'right'.";
+            throw new Error(errorMsg)
         }
-
+      }
+      catch(err) {
+        displayError(err.message, err);
+      }
     }
     tp = {id: 'root', cat: 'xp', children: sisters};
     return tp;
+}
+
+function getCliticTrees(string, options) {
+  var cliticTreeList = [];
+  // if terminal string already contains cltic label do nothing
+  if(string.includes('-clitic')) {
+    return;
+  }
+  // else run gen on new strings with clitics
+  var terminalList = string.split(" ");
+  for(var i = 0; i < terminalList.length; i++) {
+    var currList = string.split(" ");
+    currList[i] = currList[i] + '-clitic';
+    var cliticString = currList.join(" ");
+    var autoSTreePairs = GEN({}, cliticString, options);
+    var sTreeList = autoSTreePairs.map(x=>x[1]);
+    cliticTreeList = cliticTreeList.concat(sTreeList);
+  }
+  return cliticTreeList;
 }
 var uTreeCounter = 0;
 var treeUIsTreeMap = {};
@@ -5208,8 +5268,7 @@ window.addEventListener('load', function(){
 				sTrees = getAutoSTreeList();
 			}
 			catch(e){
-				console.error(e);
-				alert(e.message);
+				displayError(e.message, e);
 				return;
 			}
 		}
@@ -5220,8 +5279,7 @@ window.addEventListener('load', function(){
 				sTrees = getSTrees();
 			}
 			catch(e){
-				console.error(e);
-				alert(e.message);
+				displayError(e.message, e);
 				return;
 			}
 		}
@@ -5318,18 +5376,25 @@ window.addEventListener('load', function(){
 
 
 			//warn user about possibly excessive numbers of candidates
-			if (genOptions['cliticMovement'] && (!genOptions['noUnary'] && (getLeaves(sTree).length >= 5 || pString.split(" ").length >= 5))
-											 || (genOptions['noUnary'] && (getLeaves(sTree).length >= 7 || pString.split(" ").length >= 7))){
-				if(!confirm("You have selected GEN settings that allow movement, and included a sentence of ".concat( pString.split(" ").length.toString()," terminals. This GEN may yield more than 10K candidates. To reduce the number of candidates, consider enforcing non-recursivity, exhaustivity, and/or branchingness for intermediate prosodic nodes. Do you wish to proceed with these settings?"))){
-					throw new Error("clitic movement with too many terminals");
+			var maxNumTerminals = Math.max(getLeaves(sTree).length, pString.split(" ").length);
+			if (genOptions['cliticMovement'])
+			{
+				if((maxNumTerminals >= 7) || (!genOptions['noUnary'] && maxNumTerminals >= 5))
+				{
+					var tooManyCandMsg = "You have selected GEN settings that allow movement, and included a sentence of "+ maxNumTerminals.toString()+" terminals. This GEN may yield more than 10K candidates. To reduce the number of candidates, consider enforcing non-recursivity, exhaustivity, and/or branchingness for intermediate prosodic nodes. Do you wish to proceed with these settings?";
+					var continueGEN = confirm(tooManyCandMsg);
+					if(!continueGEN){
+						throw new Error("Tried to run GEN with clitic movement with too many terminals");
+					}
 				}
 			}
-			else if(getLeaves(sTree).length >= 6 || pString.split(" ").length >= 6){
+			else if(maxNumTerminals >= 9 || (maxNumTerminals >= 6 && !genOptions['noUnary'])){
 				if(!confirm("Inputs of more than six terminals may run slowly and even freeze your browser, depending on the selected GEN options. Do you wish to continue?")){
-					throw new Error("Tried to run gen with more than six terminals");
+					throw new Error("Tried to run GEN with too many terminals");
 				}
 			}
 
+			//Actually create the candidate set
 			if (genOptions['cliticMovement']){
 			//	var candidateSet = GENwithCliticMovement(sTree, pString, genOptions);
 				var candidateSet = globalNameOrDirect(spotForm['genOptions-movement'].value)(sTree, pString, genOptions);
@@ -5493,12 +5558,12 @@ window.addEventListener('load', function(){
 			var autoInputOptions = {};
 			var optionBox = spotForm.autoInputOptions;
 			for(var j = 0; j < optionBox.length; j++) {
-				if(optionBox[j].value === "noAdjuncts") {
-          autoInputOptions[optionBox[j].value]=!optionBox[j].checked;
-        }
-        else {
-          autoInputOptions[optionBox[j].value]=optionBox[j].checked;
-        }
+				if(optionBox[j].value == "noAdjuncts") {
+					autoInputOptions[optionBox[j].value]=!optionBox[j].checked;
+				}
+				else {
+					autoInputOptions[optionBox[j].value]=optionBox[j].checked;
+				}
 			}
 
 			// head requirements
@@ -5522,6 +5587,10 @@ window.addEventListener('load', function(){
 			autoInputOptions.recursiveCategory = spotForm['autoInputOptions-recursiveCategory'].value;
 			autoInputOptions.terminalCategory = spotForm['autoInputOptions-terminalCategory'].value;
 
+			if(autoInputOptions.recursiveCategory === 'x0' || autoInputOptions.noUnary){
+				autoInputOptions.noAdjacentHeads = false;
+			}
+			
 			// console.log(autoInputOptions)
 
 			if(inputString !== "") {
@@ -5647,7 +5716,7 @@ window.addEventListener('load', function(){
 		}), null, 4);
 
 		if(sTree.includes('-')) {
-			alert('Your trees were not added to the analysis because there are hyphens in category or id names in the tree builder. Please refer to the instructions in the tree builder info section.');
+			displayError('Your trees were not added to the analysis because there are hyphens in category or id names in the tree builder. Please refer to the instructions in the tree builder info section.');
 			var info = document.getElementById('treeBuilderInfo');
 			info.classList.add('showing');
 		}
@@ -5714,8 +5783,7 @@ window.addEventListener('load', function(){
 			treeUIsTreeMap[nodes[0].m.treeIndex].addParent(nodes);
 			refreshHtmlTree();
 		} catch (err) {
-			console.error(err);
-			alert('Error, unable to add daughter: ' + err.message);
+			displayError('Unable to add daughter: ' + err.message, err);
 		}
 		document.getElementById('doneMessage').style.display = 'none';
 	});
@@ -5726,7 +5794,7 @@ window.addEventListener('load', function(){
 			var treeIndex = nodes[0].m.treeIndex;
 			for (var i = 1; i < nodes.length; i++) {
 				if (nodes[i].treeIndex != treeIndex) {
-					alert('Attempting to delete nodes from multiple trees. Please delete nodes one tree at a time.');
+					displayError('You attempted to delete nodes from multiple trees. Please delete nodes one tree at a time.');
 					return;
 				}
 			}
@@ -5837,6 +5905,58 @@ function showMore(constraintType) {
   }
 }
 
+function closeButton() {
+	var close = document.getElementsByClassName("closebtn");
+	var i;
+
+	for (i = 0; i < close.length; i++) {
+		close[i].onclick = function() {
+			var div = this.parentElement;
+			div.style.opacity = "0";
+			setTimeout(function() {
+				div.style.display = "none";
+			}, 600);
+		}
+	}
+}
+
+function displayError(errorMsg, error) {
+	if(error !== undefined) {
+		console.error(error);
+	}
+	else {
+		console.error("Error: " + errorMsg);
+	}
+
+	var spotForm = document.getElementById('spotForm');
+	if (!spotForm) {
+		alert("Error: " + errorMsg);
+		return;
+	}
+
+	var div = document.getElementById("error");
+	div.children[2].innerHTML = errorMsg;
+	div.style.display = "block";
+	div.style.opacity = "100";
+	closeButton();
+}
+
+function displayWarning(warnMsg) {
+	console.warn("Warning: " + warnMsg);
+	
+	var spotForm = document.getElementById('spotForm');
+	if (!spotForm) {
+		alert("Warning: " + warnMsg);
+		return;
+	}
+
+	var div = document.getElementById("warning");
+	div.children[2].innerHTML = warnMsg;
+	div.style.display = "block";
+	div.style.opacity = "100";
+	closeButton();
+}
+
 function showMaxBranching() {
 	var text = document.getElementById('maxBranchingText');
 	if(text.style.display === 'none') {
@@ -5943,18 +6063,28 @@ sCat.nextLower = function(cat) {
 
 function nextLower(pCat, cat){
 	var i = pCat.indexOf(cat);
-	if (i < 0)
-		throw new Error(cat + ' is not a prosodic category');
+	try {
+		if (i < 0)
+			throw new Error(cat + ' is not a prosodic category');
+	}
+	catch(err) {
+		displayError(err.message, err);
+	}
 	return pCat[i+1];
 }
 
 //function that returns the prosodic category that is one level higher than the given category
 pCat.nextHigher = function(cat){
 	var i = pCat.indexOf(cat);
-	if (i < 0)
-		throw new Error(cat + ' is not a prosodic category');
+	try {
+		if (i < 0)
+			throw new Error(cat + ' is not a prosodic category');
+	}
+	catch(err) {
+		displayError(err.message, err);
+	}
 	if (i === 0){
-		console.error(cat + ' is the highest prosodic category');
+		displayError(cat + ' is the highest prosodic category');
 		return cat;
 	}
 	return pCat[i-1];
@@ -5996,7 +6126,7 @@ function reversibleCatPairings(cat){
         return props[i];
       }
     }
-    // if no matching category is found, return a costum error.
+    // if no matching category is found, return a custom error.
     if (!propFound){
       throw(new Error("" + cat + " is not a category defined in categoryPairings (see main/prosodicHierarchy.js)"));
     }

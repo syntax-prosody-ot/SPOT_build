@@ -837,6 +837,36 @@ function binMaxLeaves(s, ptree, c){
 	return vcount;
 }
 
+/*
+* BinMax(phi-min)
+* Violated if a minimal phi contains more than 2 minimal words --> leaf-counting
+*/
+function binMax_minLeaves(s, ptree, c){
+	// c = phi
+	markMinMax(ptree);
+	var vcount = 0;
+	if(ptree.children && ptree.children.length){
+		var leafCat = pCat.nextLower(c);
+		var wDesc = getDescendentsOfCat(ptree, leafCat);
+		// console.log("there are " + wDesc.length + " " + "ws");
+		if(ptree.cat === c && ptree.isMin){
+			var count = 0;
+			for(var i=0; i < wDesc.length; i++) {
+				if(wDesc[i].isMin) {
+					count++;
+				}
+			}
+			if(count > 2) {
+				vcount++;
+			}
+		}
+		for(var i = 0; i < ptree.children.length; i++){
+			vcount += binMax_minLeaves(s, ptree.children[i], c);
+		}
+	}
+	return vcount;
+}
+
 /* Gradiant BinMax (Leaves)
 * I don't know how to define this constraint in prose, but it's binMaxLeaves as
 * a gradient constraint instead of a categorical constraint.
@@ -1012,30 +1042,37 @@ and in that case would need a type-sensitive implementation of getLeaves
 /*
 	Head binarity for Japanese compounds
 */
-function binMaxHead(s, ptree, cat) {
-	markHeadsJapanese(ptree);
+function binMaxHead(s, ptree, cat, options) {
+	options = options || {};
+	options.side = options.side || 'right';
+	if(typeof options.side !== 'string' || !(options.side === 'right' || options.side == 'left')){
+		console.warn('The option "side" for binMaxHead must be "left" or "right" (default)');
+		options.side = right;
+	}
+	markHeads(ptree, options.side);
 	var vcount = 0;
-	// non terminal
+
 	if(ptree.children && ptree.children.length){
-		// if category is correct and word is head
-		if(ptree.cat === cat && ptree.head === true){
-			if(ptree.children.length > 2){
-				vcount++;
+		if(ptree.cat === cat){
+			for(var i = 0; i<ptree.children.length; i++){
+				if(ptree.children[i].head === true) {
+					if(ptree.children[i].children){
+						if(ptree.children[i].children.length > 2) {
+							vcount++;
+						}
+					}
+					else {
+						var id = ptree.children[i].id.split('_');
+						id = id[0];
+						if(id.length > 2) {
+							vcount++;
+						}
+					}
+				}
 			}
 		}
 		for(var i = 0; i<ptree.children.length; i++){
-			vcount += binMaxHead(s, ptree.children[i], cat);
-		}
-	}
-	// terminal
-	else {
-		// if category is correct and word is head
-		if(ptree.cat === cat && ptree.head === true){
-			var id = ptree.id.split('_');
-			id = id[0];
-			if(id.length > 2) {
-				vcount++;
-			}
+			vcount += binMaxHead(s, ptree.children[i], cat, options);
 		}
 	}
 	return vcount;
@@ -1793,14 +1830,14 @@ function noLapseL(s, p, c){
         node = accentFromId(node);  //assign an accent if necessary
         
         if(node.cat==='w'){
-            if(node.accent==='a' || node.accent === 'A'){
+            if(node.accent && node.accent !=='u' && node.accent !== 'U' && node.accent !== 'unaccented'){
                 spreadLow = true;
             }
             
             /* spreadLow will be true if no phi or iota left edge intervenes
                between the last accented word and the current word
             */ 
-            else if(spreadLow && (node.accent==='u' || node.accent==='U')){
+            else if(spreadLow && (node.accent==='u' || node.accent==='U' || !node.accent)){
                 vCount++;
             }
         }
@@ -1829,8 +1866,12 @@ function noLapseL(s, p, c){
 		if(p.accent === "a") spreadLow = true;
 */
 function accentFromId(node){
-    if(!node.accent)
-        node.accent = node.id.split('_')[0];
+    if(!node.accent){
+		var nodeIdPref = node.id.split('_')[0];
+		if(nodeIdPref in ['a', 'A', 'u', 'U'])
+			node.accent = nodeIdPref;
+	}
+        
     return node;
 }/***********************
 MATCH THEORY constraints
@@ -2098,7 +2139,7 @@ function matchCustomSP(sTree, pTree, sCat, options){
 //Match for custom match PS options
 function matchCustomPS(sTree, pTree, sCat, options){
 	options = options || {};
-	return matchPS(pTree, sTree, sCat, options);
+	return matchPS(sTree, pTree, sCat, options);
 }
 
 //Match Maximal P --> S
@@ -2107,7 +2148,7 @@ function matchMaxPS(sTree, pTree, pCat, options){
 	options = options || {};
 	options.maxSyntax = true;
 	options.maxProsody = true;
-	return matchPS(pTree, sTree, pCat, options);
+	return matchPS(sTree, pTree, pCat, options);
 }
 
 //Match P --> S version of matchMaxSyntax. See comment there for explanation
@@ -2523,38 +2564,61 @@ function markMinMax(mytree){
 	return mytree;
 }
 
-/* Function to mark heads of Japanese compound words.
- * Head of a node is the righmost daughter of the highest category.
- */
 function markHeadsJapanese(mytree){
-	var child; //for easy accees to the current child
+	console.warn('markHeadsJapanese() has changed to markHeads()');
+	return markHeads(mytree, 'right');
+}
+
+/* Function to mark heads of Japanese compound words.
+ * Head of a node is the leftmost/rightmost(default) daughter of the highest category.
+ * Takes two arguments:
+ * 	mytree: tree to mark heads on
+ * 	side: 'left' or 'right' (default)
+ */
+function markHeads(mytree, side){
+	if(typeof side !== 'string' || !(side === 'right' || side === 'left')){
+		console.warn('"side" argument of markHeads() must be "right" or "left", default to "right"');
+		side = 'right';
+	}
 	//headCat stores the highest category in children. Defaults to lowest pCat
 	var headCat = pCat[pCat.length-1];
 	if(mytree.children && mytree.children.length){
-		//mark heads and iterate through tree from RIGHT to LEFT
-		for(var i = mytree.children.length-1; i >= 0; i--){
-			child = mytree.children[i];
-			/* since we are iterating through children from right to left, when we
-			 * come across the highest cat we have seen so far, it is necessarily the
-			 * rightmost of its category */
-			if(pCat.isHigher(child.cat, headCat)){
-				headCat = child.cat;
-				child.head = true;
-				//iterate over the children we have already marked:
-				for(var x = i+1; x < mytree.children.length; x++){
-					/* when a new head is marked, all nodes to the right of it must be
-					 * marked as head = false since they are of a lower category
-					 * (remember, the outer loop is iterating from right to left) */
-					mytree.children[x].head = false;
-				}
+		let previousChildren = [];
+		if(side === 'right'){
+			//mark heads and iterate through tree from RIGHT to LEFT
+			for(let i = mytree.children.length-1; i >= 0; i--){
+				markHeadsInner(mytree.children[i], previousChildren, side);
 			}
-			else{
-				child.head = false;
+		}
+		else if(side === 'left'){
+			//mark heads and iterate from LEFT to RIGHT
+			for(let i = 0; i < mytree.children.length; i++){
+				markHeadsInner(mytree.children[i], previousChildren, side);
 			}
-			child = markHeadsJapanese(child); //recursive function call
 		}
 	}
 	return mytree;
+
+	function markHeadsInner(child, previousChildren, side){
+		/* since we are iterating through children in a specified direction, if we
+		 * come across the highest cat we have seen so far, it is necessarily the
+		 * rightmost/leftmost of its category */
+		if(pCat.isHigher(child.cat, headCat)){
+			headCat = child.cat;
+			child.head = true;
+			//iterate over the children we have already marked:
+			for(var x = 0; x < previousChildren.length; x++){
+				/* when a new head is marked, all nodes previously evaluated must be
+				 * marked as head = false since they are of a lower category */
+				previousChildren[x].head = false;
+			}
+		}
+		else{
+			child.head = false;
+		}
+		previousChildren.push(child);
+		child = markHeads(child, side); //recursive function call
+	}
 }
 //Assign a violation for every node of category c in p.
 //Truckebrodt (1995, 1999): *phi
@@ -3616,6 +3680,43 @@ function hasMatch2(sLeaves, pTree) {
 }
 /* Built-in Analyses */
 
+function clearInputs(){
+  let inputOptions = spotForm['autoInputOptions'];
+  //document.getElementById('inputOptions');
+
+  spotForm['autoInputOptions-rootCategory'].value = 'xp';
+  spotForm['autoInputOptions-recursiveCategory'].value = 'xp';
+  spotForm['autoInputOptions-terminalCategory'].value = 'x0';
+
+  for(let i = 0; i<inputOptions.length; i++){
+    if(inputOptions[i].checked){
+      inputOptions[i].click();
+    }
+  }
+
+  spotForm['head-req'].value = 'select';
+
+  if(spotForm['autoInputOptions-addClitics'].checked){
+    spotForm['autoInputOptions-addClitics'].click();
+  }
+
+  let inputStrings = spotForm['inputToGenAuto'];
+
+  if(inputStrings.length){
+    for(let i = 0; i<inputStrings.length; i++){
+      inputStrings[i].value = ''
+      if(i>0){
+        inputStrings[i].parentElement.remove();
+      }
+    }
+  }
+  else{
+    inputStrings.value = ''
+  }
+
+  changeInputTabs('inputButton', 'goButton');
+}
+
 /*function to clear out any previous interaction with the interface, either from
  * the user or from another built-in alalysis. */
 function clearAnalysis(){
@@ -3676,6 +3777,9 @@ function clearAnalysis(){
   }
   window.clearUTrees();
   document.getElementById("stree-textarea").value = '{}';
+
+  clearInputs();
+
 }
 
 /* Function to check all of the boxes for a built-in constaint set in the UI
@@ -3778,7 +3882,61 @@ function built_in_con(input){
   }
 }
 
+function built_in_input(myTrees){
+  if(Array.isArray(myTrees)){ //manual trees
+    //First, shows the tree UI & the code view
+    changeInputTabs('inputButton', 'goButton');
+  
+    for(var i = 0; i < myTrees.length; i++){
+      var myUTree = new UTree(myTrees[i]);
+      window.showUTree(myUTree);
+    }
+    document.getElementById("htmlToJsonTreeButton").click();
+    //document.getElementById("tree-code-box").click();
+    //Then paste trees in
+    //document.getElementById("stree-textarea").value = JSON.stringify(myTrees);
+  
+  }
+  else if (Object.keys(myTrees).length){
+    //First make sure we are in auto mode and open syntax options
+    changeInputTabs('goButton', 'inputButton');
+    document.getElementById('syntax-parameters').setAttribute('class', 'open');
 
+    for(let x = 0; x<spotForm.autoInputOptions.length; x++){
+      const autoBox = spotForm.autoInputOptions[x];
+      if(myTrees.autoInputOptions[autoBox.value] && !autoBox.checked){
+        autoBox.click();
+      }
+    }
+
+    if(myTrees.inputToGenAuto.length<2){
+      spotForm.inputToGenAuto.value = myTrees.inputToGenAuto[0];
+    }
+    else{
+      for(let x = 0; x<myTrees.inputToGenAuto.length; x++){
+        if(!spotForm.inputToGenAuto.length || spotForm.inputToGenAuto.length<myTrees.inputToGenAuto.length){
+          document.getElementById('addString').click();
+        }
+        spotForm.inputToGenAuto[x].value = myTrees.inputToGenAuto[x];
+      }
+    }
+
+    if(myTrees['autoInputOptions-addClitics']){
+      if(!spotForm['autoInputOptions-addClitics'][0].checked){
+        spotForm['autoInputOptions-addClitics'][0].click();
+      }
+      spotForm['autoInputOptions-addClitics'].value = myTrees['autoInputOptions-addClitics'];
+    }
+
+    for(const i in myTrees){
+      if(typeof myTrees[i] === 'string'){
+        spotForm[i].value = myTrees[i];
+      }
+    }
+
+    document.getElementById('autoGenDoneButton').click();
+  }
+}
 
 /*Template for built-in analyses
 * Arguments:
@@ -3850,19 +4008,9 @@ function my_built_in_analysis(myGEN, showTones, myTrees, myCon){
   //Step 2: CON. Call a helper function to select the appropriate constraints & categories.
   built_in_con(myCon);
 
-  //Step 3: Trees
-  //First, shows the tree UI & the code view
-  changeInputTabs('inputButton', 'goButton');
-
-  for(var i = 0; i < myTrees.length; i++){
-	  var myUTree = new UTree(myTrees[i]);
-	  window.showUTree(myUTree);
-  }
-  document.getElementById("htmlToJsonTreeButton").click();
-  //document.getElementById("tree-code-box").click();
-  //Then paste trees in
-  //document.getElementById("stree-textarea").value = JSON.stringify(myTrees);
-
+  //Step 3: Trees Call a helper function
+  built_in_input(myTrees);
+  
   // Step 4: If showTones is not false, the tableaux will be annotated with tones.
   if(showTones){
     var toneCheckbox = document.getElementById("annotatedWithTones");
@@ -4062,8 +4210,42 @@ function record_analysis(){
     }
   }
 
-  //myTrees
-  analysis.myTrees = JSON.parse(document.getElementById("stree-textarea").value);
+  //myTrees: manual
+  if(document.getElementById('treeUI').style.display == 'block'){
+    analysis.myTrees = JSON.parse(document.getElementById("stree-textarea").value);
+  }
+  //myTrees: auto
+  else if(document.getElementById('inputOptions').style.display == 'block'){
+    analysis.myTrees = {};
+    analysis.myTrees.autoInputOptions = {};
+    for(let i = 0; i<spotForm.autoInputOptions.length; i++){
+      if(spotForm.autoInputOptions[i].checked){
+        analysis.myTrees.autoInputOptions[spotForm.autoInputOptions[i].value] = true;
+      }
+    }
+    if(spotForm['autoInputOptions-addClitics'][0].checked){
+      analysis.myTrees['autoInputOptions-addClitics'] = spotForm['autoInputOptions-addClitics'].value;
+    }
+    analysis.myTrees['autoInputOptions-rootCategory'] = spotForm['autoInputOptions-rootCategory'].value;
+    analysis.myTrees['autoInputOptions-recursiveCategory'] = spotForm['autoInputOptions-recursiveCategory'].value;
+    analysis.myTrees['autoInputOptions-terminalCategory'] = spotForm['autoInputOptions-terminalCategory'].value;
+    
+    analysis.myTrees['head-req'] = spotForm['head-req'].value;
+
+    if(spotForm.inputToGenAuto.length){
+      analysis.myTrees.inputToGenAuto = [];
+      for(let i = 0; i<spotForm.inputToGenAuto.length; i++){
+        analysis.myTrees.inputToGenAuto.push(spotForm.inputToGenAuto[i].value);
+      }
+    }
+    else {
+      analysis.myTrees.inputToGenAuto = [spotForm.inputToGenAuto.value];
+    }
+  }
+  else {
+    displayError('GEN input not found');
+    throw new Error('GEN input not found');
+  }
 
   //myCon
   var uCon = spotForm.constraints;
@@ -4656,7 +4838,8 @@ window.GEN = function(sTree, words, options){
 				}
 				var accentSuffix = '';
 				if(words[i].accent){
-					accentSuffix = '-'+words[i].accent;
+					var accentVal = (words[i].accent && words[i].accent !== 'u') ? "accented": "unaccented";
+					accentSuffix = '-'+ accentVal;
 				}
 				words[i] = words[i].id+catSuffix+accentSuffix;
 			}
@@ -4738,6 +4921,8 @@ function wrapInLeafCat(word, cat, syntactic){
 *    the resulting syntactic trees. Default = 2
 *  - minBranching: determines the maximum number of branches that are tolerated in
 *    the resulting syntactic trees. Default = 2
+*  - noBarLevels: if false (default), bar levels are treated as phrasal. 
+*    If true, bar levels are not represented, and ternary branching is permitted.
 *  - addClitics: 'right' or 'left' determines whether clitics are added on the
 *    righthand-side or the left; true will default to right. false doesn't add any clitics.
 *    Default false.
@@ -4754,41 +4939,59 @@ function sTreeGEN(terminalString, options)
     if(options.noAdjacentHeads === undefined){
         options.noAdjacentHeads = true;
     }
-    options.maxBranching = options.maxBranching || 2;
+    
     options.syntactic = true;
     options.recursiveCategory = options.recursiveCategory || 'xp';
     options.terminalCategory = options.terminalCategory || 'x0';
     options.rootCategory = options.rootCategory || 'xp';
+
+    // If bar levels are not treated as phrasal, then we need to allow ternary XPs and CPs, but not ternary x0s.
+    if(options.noBarLevels && options.recursiveCategory !== 'x0'){
+      options.maxBranching = 3;
+    }
+    //Otherwise, we want binary branching syntactic inputs.
+    options.maxBranching = options.maxBranching || 2;
 
     //Run GEN on the provided terminal string
     var autoSTreePairs = GEN({}, terminalString, options);
     //Select just the generated trees
     var sTreeList = autoSTreePairs.map(x=>x[1]);
 
-    //Apply filters
+    //---Apply filters---
     if(options.allowClitic){
       var cliticTrees = getCliticTrees(terminalString, options);
       if(cliticTrees) {
         sTreeList = sTreeList.concat(cliticTrees);
       }
     }
+    if(options.noAdjuncts){
+        sTreeList = sTreeList.filter(x => !containsAdjunct(x));
+    }
     if(options.addClitics){
-        var outsideClitics = sTreeList.map(x => addCliticXP(x, options.addClitics));
-        var insideClitics = sTreeList.map(x => addCliticXP(x, options.addClitics, true));
+        if(options.rootCategory !== 'cp'){
+          var outsideClitics = sTreeList.map(x => addCliticXP(x, options.addClitics, options.rootCategory));
+        }
+        else {
+          var outsideClitics = [];
+        }
+        var insideClitics = sTreeList.map(x => addCliticXP(x, options.addClitics, options.rootCategory, true));
         sTreeList = outsideClitics.concat(insideClitics);
     }
     if(options.noAdjacentHeads){
         sTreeList = sTreeList.filter(x => !x0Sisters(x, 'x0'));
     }
-    if(options.noAdjuncts){
-        sTreeList = sTreeList.filter(x => !x0Sisters(x, options.recursiveCategory));
-    }
+
     if(options.maxBranching > 0){
         sTreeList = sTreeList.filter(x=>!ternaryNodes(x, options.maxBranching));
     }
     if(options.minBranching > 0){
         sTreeList = sTreeList.filter(x=>!unaryNodes(x, options.minBranching));
     }
+  
+    if(options.noBarLevels){
+      sTreeList = sTreeList.filter(x => !threeXPs(x));
+    }
+  
     if(options.headSide){
         var side, strict;
         [side, strict] = options.headSide.split('-');
@@ -4797,11 +5000,11 @@ function sTreeGEN(terminalString, options)
     if(options.noMirrorImages){
       sTreeList = sTreeList.filter(x => !mirrorImages(x, sTreeList));
     }
-
+    // console.log(sTree)
     return sTreeList;
 }
 
-function addCliticXP(sTree, side="right", inside){
+function addCliticXP(sTree, side="right", rootCategory, inside){
     var cliticXP = {id:'dp', cat: 'xp', children: [{id:'x', cat: 'clitic'}]};
     var tp;
     var sisters;
@@ -4844,7 +5047,7 @@ function addCliticXP(sTree, side="right", inside){
         displayError(err.message, err);
       }
     }
-    tp = {id: 'root', cat: 'xp', children: sisters};
+    tp = {id: 'root', cat: rootCategory, children: sisters};
     return tp;
 }
 
@@ -4865,6 +5068,57 @@ function getCliticTrees(string, options) {
     cliticTreeList = cliticTreeList.concat(sTreeList);
   }
   return cliticTreeList;
+}
+
+// Return an array of all possible space-separated strings of length at least min and no more than max, drawn from T with replacement.
+// T -> input array of characters in string
+// min -> minimum length of output strings
+// max -> maximum length of output strings
+function generateTerminalStrings(T, min, max) {
+  // Get list of all possible permutations for each length
+  var finalPermList = [];
+  for(var i = min; i <= max; i++) {
+    var temp = T.slice();
+    var data = new Array(i);
+    var permList = [];
+    var currPermList = getPermutations(temp, data, i - 1, 0, permList);
+    // Initialize finalPermList
+    if(finalPermList.length === 0) {
+      finalPermList = currPermList;
+    }
+    // Add to finalPermList
+    else {
+      finalPermList = finalPermList.concat(currPermList);
+    }
+  }
+
+  return finalPermList;
+}
+
+// Return an array of all permutations (allowing repitition) of input array T
+// T -> input array of characters in string
+// data -> stores permutation at current iteration
+// last -> index of last element in resulting permuatation
+// index -> current index
+// permList -> list of all permutations
+// If T = ['F', 'FF'] and last = 1
+// Then permList = ["F F", "F FF", "FF F", "FF FF"]
+function getPermutations(T, data, last, index, permList) {
+  var length = T.length;
+  // One by one fix all characters at the given index and recur for the subsequent indexes
+  for(var i = 0; i < length; i++) {
+    // Fix the ith character at index and if this is not the last index then recursively call for higher indexes
+    data[index] = T[i];
+    // If this is the last index then add the string stored in data to permList
+    if(index == last) {
+      var strData = data.join(' ');
+      permList.push(strData);
+    }
+    else {
+      getPermutations(T, data, last, index + 1, permList);
+    }
+  }
+  return permList;
 }
 var uTreeCounter = 0;
 var treeUIsTreeMap = {};
@@ -5222,11 +5476,14 @@ window.addEventListener('load', function(){
 						var categoryBox = constraintCatSet[j];
 						if(categoryBox.checked){
 							var category = categoryBox.value;
-							if(constraint === "alignLeftMorpheme") {
+							if(constraint === "alignLeftMorpheme" || constraint === 'alignRightMorpheme') {
 								category = category.split(' ').join(';');
 							}
+							if(constraint === "binMaxHead") {
+								constraintSet.push('binMaxHead-' + category + '-{"side" : "' + spotForm['genOptions-showHeads'].value + '"}')
+							}
 							//Figure out selected match options for the constraint
-							if(spotForm['option-'+constraint]){
+							else if(spotForm['option-'+constraint]){
 								var constraintOptionSet = spotForm['option-'+constraint];
 								var options = {};
 								if(constraintOptionSet.length){
@@ -5353,7 +5610,7 @@ window.addEventListener('load', function(){
 			tableauOptions.trimStree = true;
 		}
 		if(document.getElementById("showHeads").checked){
-			tableauOptions.showHeads= true;
+			tableauOptions.showHeads = spotForm['genOptions-showHeads'].value;
 		}
 
 
@@ -5471,6 +5728,15 @@ window.addEventListener('load', function(){
 
 	});
 
+	document.getElementById('showHeads').addEventListener('click', function(){
+		if (document.getElementById('headSideOptions').style.display === 'none' && document.getElementById('showHeads').checked){
+			document.getElementById('headSideOptions').style.display = '';
+		}
+		else{
+			document.getElementById('headSideOptions').style.display = 'none';
+		}
+	});
+
 	/*
 	document.getElementById("japaneseTonesInfo").addEventListener("click", toneInfoBlock("japanese"));
 	document.getElementById("irishTonesInfo").addEventListener("click", toneInfoBlock("irish"));
@@ -5558,8 +5824,8 @@ window.addEventListener('load', function(){
 			var autoInputOptions = {};
 			var optionBox = spotForm.autoInputOptions;
 			for(var j = 0; j < optionBox.length; j++) {
-				if(optionBox[j].value == "noAdjuncts") {
-					autoInputOptions[optionBox[j].value]=!optionBox[j].checked;
+				if(optionBox[j].value == "noAdjuncts" || optionBox[j].value == "noBarLevels") {
+					autoInputOptions[optionBox[j].value] =! optionBox[j].checked;
 				}
 				else {
 					autoInputOptions[optionBox[j].value]=optionBox[j].checked;
@@ -5590,7 +5856,7 @@ window.addEventListener('load', function(){
 			if(autoInputOptions.recursiveCategory === 'x0' || autoInputOptions.noUnary){
 				autoInputOptions.noAdjacentHeads = false;
 			}
-			
+
 			// console.log(autoInputOptions)
 
 			if(inputString !== "") {
@@ -5626,6 +5892,14 @@ window.addEventListener('load', function(){
 
 	// check for change in syntax parameters
 	document.getElementById('syntax-parameters').addEventListener('change', function(){
+		document.getElementById('autoDoneMessage').style.display = 'none';
+	});
+	// check for change in syntax parameters
+	document.getElementById('syntax-parameters-clitics').addEventListener('change', function(){
+		document.getElementById('autoDoneMessage').style.display = 'none';
+	});
+	// check for change in syntax parameters
+	document.getElementById('syntax-parameters-phonology').addEventListener('change', function(){
 		document.getElementById('autoDoneMessage').style.display = 'none';
 	});
 
@@ -5686,7 +5960,17 @@ window.addEventListener('load', function(){
 		if (cats.length > 1){
 			node['cat'] = cats[0];
 		}
-		for (var cat of cats){
+		// add the rest of the list as attributes
+		for (var cat of cats.slice(1)){
+			// remove non-alphanumeric characters, underscores
+			// replace capital letters with lowercase
+			att = cat.trim().replace(/\W/g, '');
+			if (att === ""){
+				continue;
+			}
+			//console.log(att)
+			node[att] = true;
+			/*
 			if (cat.indexOf('silentHead') != -1){
 				node['silentHead'] = true;
 			}
@@ -5695,7 +5979,8 @@ window.addEventListener('load', function(){
 			}
 			if (cat.indexOf('foc') != -1){
 				node['foc'] = true;
-			}
+			}*/
+
 		}
 		var children = node['children'];
 		if (children != undefined){
@@ -5834,7 +6119,7 @@ window.addEventListener('load', function(){
 
 	document.getElementById("clearAllButton").addEventListener("click", function(){
 		clearAnalysis();
-		document.getElementById('treeUI').style.display = 'none';
+		document.getElementById('treeUIinner').style.display = 'none';
 		document.getElementById('built-in-dropdown').value = 'select';
 		document.getElementById('fileUpload').value = '';
 		document.getElementById('chooseFilePrompt').style = "font-size: 13px; color: #555";
@@ -5844,6 +6129,93 @@ window.addEventListener('load', function(){
 
 	document.getElementById('spotForm').addEventListener("change", function(){
 		document.getElementById("save/load-dialog").innerHTML = '';
+	});
+
+	var x = document.getElementsByName("autoInputOptions");
+	console.log(x);
+	var i;
+	var noBarLevelsIndex;
+	for (i = 0; i < x.length; i++) {
+		if (x[i].value === "noBarLevels") {
+			noBarLevelsIndex = i;
+			break;
+		}
+	}
+
+	document.getElementsByName('autoInputOptions-recursiveCategory')[2].addEventListener('click', function() {
+		if(document.getElementsByName('autoInputOptions-recursiveCategory')[2].checked == true) {
+			// console.log("xo checked")
+			var x = document.getElementsByName("autoInputOptions")[noBarLevelsIndex];
+			if(x.checked === true) {
+				x.checked = false;
+			}
+			x.disabled = true;
+			var y = document.getElementById('head-req').options;
+			y[1].disabled = true;
+			y[2].disabled = true;
+			y[3].disabled = true;
+			y[4].disabled = true;
+		}
+	});
+
+	document.getElementsByName('autoInputOptions-recursiveCategory')[0].addEventListener('click', function() {
+		if(document.getElementsByName('autoInputOptions-recursiveCategory')[0].checked == true) {
+			// console.log("cp checked")
+			var x = document.getElementsByName("autoInputOptions")[noBarLevelsIndex];
+			x.disabled = false;
+			var y = document.getElementById('head-req').options;
+			y[1].disabled = false;
+			y[2].disabled = false;
+			if(x.checked) {
+				y[3].disabled = false;
+				y[4].disabled = false;
+			}
+			else {
+				y[3].disabled = true;
+				y[4].disabled = true;
+			}
+		}
+	});
+
+	document.getElementsByName('autoInputOptions-recursiveCategory')[1].addEventListener('click', function() {
+		if(document.getElementsByName('autoInputOptions-recursiveCategory')[1].checked == true) {
+			// console.log("xp checked")
+			var x = document.getElementsByName("autoInputOptions")[noBarLevelsIndex];
+			x.disabled = false;
+			var y = document.getElementById('head-req').options;
+			y[1].disabled = false;
+			y[2].disabled = false;
+			if(x.checked) {
+				y[3].disabled = false;
+				y[4].disabled = false;
+			}
+			else {
+				y[3].disabled = true;
+				y[4].disabled = true;
+			}
+		}
+	});
+
+	document.getElementsByName("autoInputOptions")[noBarLevelsIndex].addEventListener('click', function() {
+		var x = document.getElementsByName("autoInputOptions")[noBarLevelsIndex];
+		if(x.checked === false) {
+			var y = document.getElementById('head-req').options;
+			// Heads must be perfectly left-aligned
+			y[1].disabled = false;
+			// Heads must be perfectly right-aligned
+			y[2].disabled = false;
+			// Heads must be on the left edge
+			y[3].disabled = false;
+			// Heads must be on the right edge
+			y[4].disabled = false;
+		}
+		else {
+			var y = document.getElementById('head-req').options;
+			y[1].disabled = false;
+			y[2].disabled = false;
+			y[3].disabled = true;
+			y[4].disabled = true;
+		}
 	});
 
 });
@@ -5943,7 +6315,7 @@ function displayError(errorMsg, error) {
 
 function displayWarning(warnMsg) {
 	console.warn("Warning: " + warnMsg);
-	
+
 	var spotForm = document.getElementById('spotForm');
 	if (!spotForm) {
 		alert("Warning: " + warnMsg);
@@ -6368,6 +6740,50 @@ function checkMirror(sTree, rTree) {
 	return true;
 }
 
+// Return true if there is any node that has more than two children x such that x.cat === 'xp'.
+// Two xp children is fine, but three (or more) is not fine.
+function threeXPs(sTree) {
+	var threeXPsFound = false;
+	if(sTree.children && sTree.children.length){
+		// console.log(sTree.children)
+		var numXPs = 0;
+		for(var i=0; i<sTree.children.length; i++){
+			var child = sTree.children[i];
+			if(child.cat === 'xp') {
+				numXPs += 1;
+			}
+			if(numXPs > 2) {
+				threeXPsFound = true;
+				break;
+			}
+			threeXPsFound = threeXPs(child);
+			if(threeXPsFound) break;
+		}
+	}
+	return threeXPsFound;
+}
+
+// Return true if there is a node in it whose children are all xps, false if all nodes have an x0 child
+function containsAdjunct(sTree) {
+	var adjunctFound = false;
+	if(sTree.children && sTree.children.length){
+		var numXPs = 0;
+		for(var i=0; i<sTree.children.length; i++){
+			var child = sTree.children[i];
+			if(child.cat === 'xp') {
+				numXPs += 1;
+			}
+			if(numXPs == sTree.children.length) {
+				adjunctFound = true;
+				break;
+			}
+			adjunctFound = containsAdjunct(child);
+			if(adjunctFound) break;
+		}
+	}
+	return adjunctFound;
+}
+
 // Produces an array of arrays representing a tableau
 // Options: GEN options and options for parenthesize trees
 // trimStree option uses the trimmed version of the sTree
@@ -6434,7 +6850,7 @@ function makeTableau(candidateSet, constraintSet, options){
 	var numCand = candidateSet.length;
 	for(var i = 1; i <= numCand; i++){
 		var candidate = candidateSet[numCand-i];
-		if(options.showHeads){candidate[1] = markHeadsJapanese(candidate[1]);}
+		if(options.showHeads){candidate[1] = markHeads(candidate[1], options.showHeads);}
 		var ptreeStr = options.inputTypeString ? candidate[1] : parenthesizeTree(globalNameOrDirect(candidate[1]), options);
 		var tableauRow = [ptreeStr];
 		for(var j = 0; j < constraintSet.length; j++){
@@ -6554,15 +6970,7 @@ function parenthesizeTree(tree, options){
 		if (nonTerminal) {
 			if (visible) {
 				var tempLabel = parens[node.cat][0];
-				if (node["func"]){
-					tempLabel += ".f";
-				}
-				if (node["silentHead"]){
-					tempLabel += ".sh";
-				}
-				if (node["foc"]){
-					tempLabel += ".foc";
-				}
+				tempLabel = addAttributeLabels(node, tempLabel)
 				if (node["func"] || node["silentHead"] || node["foc"]){
 					tempLabel += " ";
 				}
@@ -6603,16 +7011,8 @@ function parenthesizeTree(tree, options){
 		//terminal but visible
 		else if (visible) {
 			var tempLabel = node.id;
-			if (node["func"]){
-				tempLabel += ".f";
-			}
-			if (node["silentHead"]){
-				tempLabel += ".sh";
-			}
-			if (node["foc"]){
-				tempLabel += ".foc";
-			}
-			parTree.push(tempLabel);
+			
+			parTree.push(addAttributeLabels(node, tempLabel));
 			//parTree.push(node.id);
 			if(node.cat!='w' && node.cat!='x0'){
 				parTree.push('.'+node.cat);
@@ -6640,6 +7040,24 @@ function parenthesizeTree(tree, options){
 	if(showTones)
 		guiTree = guiTree + '\n' + toneTree.join('');
 	return guiTree;
+}
+
+function addAttributeLabels(node, tempLabel){
+	if (node ["accent"]){
+		//add .a if the node has an accent attribute with a value that isn't 'u' or 'U', and the node's id isn't already a or A.
+		var accentLabel = (node.accent !== 'u' && node.accent !== 'U' && node.id !== 'A' && node.id !== 'a')? '.a': '';
+		tempLabel += accentLabel;
+	}
+	if (node["func"]){
+		tempLabel += ".f";
+	}
+	if (node["silentHead"]){
+		tempLabel += ".sh";
+	}
+	if (node["foc"]){
+		tempLabel += ".foc";
+	}
+	return tempLabel;
 }
 /* copyTree function gives you a new tree so you can have two copies of a tree
  * that do not reference eachother in memory, getting around pass by reference

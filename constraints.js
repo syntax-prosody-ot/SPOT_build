@@ -837,6 +837,36 @@ function binMaxLeaves(s, ptree, c){
 	return vcount;
 }
 
+/*
+* BinMax(phi-min)
+* Violated if a minimal phi contains more than 2 minimal words --> leaf-counting
+*/
+function binMax_minLeaves(s, ptree, c){
+	// c = phi
+	markMinMax(ptree);
+	var vcount = 0;
+	if(ptree.children && ptree.children.length){
+		var leafCat = pCat.nextLower(c);
+		var wDesc = getDescendentsOfCat(ptree, leafCat);
+		// console.log("there are " + wDesc.length + " " + "ws");
+		if(ptree.cat === c && ptree.isMin){
+			var count = 0;
+			for(var i=0; i < wDesc.length; i++) {
+				if(wDesc[i].isMin) {
+					count++;
+				}
+			}
+			if(count > 2) {
+				vcount++;
+			}
+		}
+		for(var i = 0; i < ptree.children.length; i++){
+			vcount += binMax_minLeaves(s, ptree.children[i], c);
+		}
+	}
+	return vcount;
+}
+
 /* Gradiant BinMax (Leaves)
 * I don't know how to define this constraint in prose, but it's binMaxLeaves as
 * a gradient constraint instead of a categorical constraint.
@@ -1012,30 +1042,37 @@ and in that case would need a type-sensitive implementation of getLeaves
 /*
 	Head binarity for Japanese compounds
 */
-function binMaxHead(s, ptree, cat) {
-	markHeadsJapanese(ptree);
+function binMaxHead(s, ptree, cat, options) {
+	options = options || {};
+	options.side = options.side || 'right';
+	if(typeof options.side !== 'string' || !(options.side === 'right' || options.side == 'left')){
+		console.warn('The option "side" for binMaxHead must be "left" or "right" (default)');
+		options.side = right;
+	}
+	markHeads(ptree, options.side);
 	var vcount = 0;
-	// non terminal
+
 	if(ptree.children && ptree.children.length){
-		// if category is correct and word is head
-		if(ptree.cat === cat && ptree.head === true){
-			if(ptree.children.length > 2){
-				vcount++;
+		if(ptree.cat === cat){
+			for(var i = 0; i<ptree.children.length; i++){
+				if(ptree.children[i].head === true) {
+					if(ptree.children[i].children){
+						if(ptree.children[i].children.length > 2) {
+							vcount++;
+						}
+					}
+					else {
+						var id = ptree.children[i].id.split('_');
+						id = id[0];
+						if(id.length > 2) {
+							vcount++;
+						}
+					}
+				}
 			}
 		}
 		for(var i = 0; i<ptree.children.length; i++){
-			vcount += binMaxHead(s, ptree.children[i], cat);
-		}
-	}
-	// terminal
-	else {
-		// if category is correct and word is head
-		if(ptree.cat === cat && ptree.head === true){
-			var id = ptree.id.split('_');
-			id = id[0];
-			if(id.length > 2) {
-				vcount++;
-			}
+			vcount += binMaxHead(s, ptree.children[i], cat, options);
 		}
 	}
 	return vcount;
@@ -1793,14 +1830,14 @@ function noLapseL(s, p, c){
         node = accentFromId(node);  //assign an accent if necessary
         
         if(node.cat==='w'){
-            if(node.accent==='a' || node.accent === 'A'){
+            if(node.accent && node.accent !=='u' && node.accent !== 'U' && node.accent !== 'unaccented'){
                 spreadLow = true;
             }
             
             /* spreadLow will be true if no phi or iota left edge intervenes
                between the last accented word and the current word
             */ 
-            else if(spreadLow && (node.accent==='u' || node.accent==='U')){
+            else if(spreadLow && (node.accent==='u' || node.accent==='U' || !node.accent)){
                 vCount++;
             }
         }
@@ -1829,8 +1866,12 @@ function noLapseL(s, p, c){
 		if(p.accent === "a") spreadLow = true;
 */
 function accentFromId(node){
-    if(!node.accent)
-        node.accent = node.id.split('_')[0];
+    if(!node.accent){
+		var nodeIdPref = node.id.split('_')[0];
+		if(nodeIdPref in ['a', 'A', 'u', 'U'])
+			node.accent = nodeIdPref;
+	}
+        
     return node;
 }/***********************
 MATCH THEORY constraints
@@ -2098,7 +2139,7 @@ function matchCustomSP(sTree, pTree, sCat, options){
 //Match for custom match PS options
 function matchCustomPS(sTree, pTree, sCat, options){
 	options = options || {};
-	return matchPS(pTree, sTree, sCat, options);
+	return matchPS(sTree, pTree, sCat, options);
 }
 
 //Match Maximal P --> S
@@ -2107,7 +2148,7 @@ function matchMaxPS(sTree, pTree, pCat, options){
 	options = options || {};
 	options.maxSyntax = true;
 	options.maxProsody = true;
-	return matchPS(pTree, sTree, pCat, options);
+	return matchPS(sTree, pTree, pCat, options);
 }
 
 //Match P --> S version of matchMaxSyntax. See comment there for explanation
@@ -2523,38 +2564,61 @@ function markMinMax(mytree){
 	return mytree;
 }
 
-/* Function to mark heads of Japanese compound words.
- * Head of a node is the righmost daughter of the highest category.
- */
 function markHeadsJapanese(mytree){
-	var child; //for easy accees to the current child
+	console.warn('markHeadsJapanese() has changed to markHeads()');
+	return markHeads(mytree, 'right');
+}
+
+/* Function to mark heads of Japanese compound words.
+ * Head of a node is the leftmost/rightmost(default) daughter of the highest category.
+ * Takes two arguments:
+ * 	mytree: tree to mark heads on
+ * 	side: 'left' or 'right' (default)
+ */
+function markHeads(mytree, side){
+	if(typeof side !== 'string' || !(side === 'right' || side === 'left')){
+		console.warn('"side" argument of markHeads() must be "right" or "left", default to "right"');
+		side = 'right';
+	}
 	//headCat stores the highest category in children. Defaults to lowest pCat
 	var headCat = pCat[pCat.length-1];
 	if(mytree.children && mytree.children.length){
-		//mark heads and iterate through tree from RIGHT to LEFT
-		for(var i = mytree.children.length-1; i >= 0; i--){
-			child = mytree.children[i];
-			/* since we are iterating through children from right to left, when we
-			 * come across the highest cat we have seen so far, it is necessarily the
-			 * rightmost of its category */
-			if(pCat.isHigher(child.cat, headCat)){
-				headCat = child.cat;
-				child.head = true;
-				//iterate over the children we have already marked:
-				for(var x = i+1; x < mytree.children.length; x++){
-					/* when a new head is marked, all nodes to the right of it must be
-					 * marked as head = false since they are of a lower category
-					 * (remember, the outer loop is iterating from right to left) */
-					mytree.children[x].head = false;
-				}
+		let previousChildren = [];
+		if(side === 'right'){
+			//mark heads and iterate through tree from RIGHT to LEFT
+			for(let i = mytree.children.length-1; i >= 0; i--){
+				markHeadsInner(mytree.children[i], previousChildren, side);
 			}
-			else{
-				child.head = false;
+		}
+		else if(side === 'left'){
+			//mark heads and iterate from LEFT to RIGHT
+			for(let i = 0; i < mytree.children.length; i++){
+				markHeadsInner(mytree.children[i], previousChildren, side);
 			}
-			child = markHeadsJapanese(child); //recursive function call
 		}
 	}
 	return mytree;
+
+	function markHeadsInner(child, previousChildren, side){
+		/* since we are iterating through children in a specified direction, if we
+		 * come across the highest cat we have seen so far, it is necessarily the
+		 * rightmost/leftmost of its category */
+		if(pCat.isHigher(child.cat, headCat)){
+			headCat = child.cat;
+			child.head = true;
+			//iterate over the children we have already marked:
+			for(var x = 0; x < previousChildren.length; x++){
+				/* when a new head is marked, all nodes previously evaluated must be
+				 * marked as head = false since they are of a lower category */
+				previousChildren[x].head = false;
+			}
+		}
+		else{
+			child.head = false;
+		}
+		previousChildren.push(child);
+		child = markHeads(child, side); //recursive function call
+	}
 }
 //Assign a violation for every node of category c in p.
 //Truckebrodt (1995, 1999): *phi

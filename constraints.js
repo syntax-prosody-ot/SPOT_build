@@ -5,13 +5,13 @@
 
 function alignMorpheme(stree, ptree, clitic, direction){
 	if(ptree.cat !== "i" && ptree.cat !== 'iota'){
-				displayWarning("You are calling alignLeftClitic on a tree that is not rooted in i");
+				displayWarning("You are calling alignMorpheme on a tree that is not rooted in i");
     }
     clitic = clitic.split(';');
     var leaves = getLeaves(ptree);
     var cliticPos = leaves.findIndex(function(element){return clitic.indexOf(element.id) >= 0;});
     if(cliticPos < 0){
-				displayWarning("The specified clitic "+clitic+" was not found in this tree");
+				console.warn("alignMorpheme(): The specified morpheme "+clitic+" was not found in this tree");
         cliticPos = 0;
     }
     if (direction == "left"){
@@ -62,10 +62,12 @@ the first leaf dominated by p.
 *	maxProsody: If true, the prosodic match needs to be maximal. Passed to hasMatch.
 *	minProsody: If true, the prosodic match needs to be minimal. Passed to hasMatch.
 *	nonMaxProsody: If true, the prosodic match must be non-maximal. Passed to hasMatch.
-*	nonMinProsody: If true, the prosodic match must be non-minimal. Passed to hasMatch.*/
+*	nonMinProsody: If true, the prosodic match must be non-minimal. Passed to hasMatch.
+*	customPairings: A mapping of custom pairings. Passed to catsMatch.
+*	*/
 function alignSP(sTree, pTree, sCat, d, options){
 	options = options || {};
-
+	
 	var getEdge = (d==="left") ? getLeftEdge : getRightEdge;
 	var vCount = 0;
 	
@@ -203,6 +205,7 @@ function alignFocRight(sTree, pTree, cat){
 	return alignFocus(sTree, pTree, cat, 'right');
 }
 function wrap(sTree, pTree, cat){
+	//options = options || {};
 	var vCount = 0;
 	walkTree(sTree, function(sNode){
 		if(sNode.cat !== cat)
@@ -283,10 +286,13 @@ function addJapaneseTones(ptree){
 		
 		else if(ptree.cat === 'w'){
 			//Unaccented w
-			if(!ptree.accent){
-				ptree.accent = ptree.id.split('_')[0];
+
+			if(!ptree.hasOwnProperty('accent')){
+				//ptree.accent = ptree.id.split('_')[0];
+				//accentFromId() is defined in japaneseAccent.js
+				ptree = accentFromId(ptree);
 			}
-			if(ptree.accent === 'A' || ptree.accent === 'a'){
+			if(ptree.accent){
 				ptree.tones = 'H*L';
 				if(afterA)
 					ptree.tones = '!H*L';
@@ -473,6 +479,8 @@ function balancedSistersAdj(stree, ptree, cat){
 
 /* Assign a violation for every set of sisters dominated by a node of category cat 
    that do not all have the same number of children.
+
+   Update Oct. 2020: make category specification optional
 */
 function balancedSisters(stree, ptree, cat){
     var vcount = 0;
@@ -483,7 +491,7 @@ function balancedSisters(stree, ptree, cat){
     }
 
     else{
-        if(ptree.cat===cat){
+        if(!cat || ptree.cat===cat){
             
             // Base case: violation if the children have differing numbers of children
             var imbalanceFound = false;
@@ -736,24 +744,30 @@ function binMinBranchesInit(s, ptree, cat){
 }
 //sensitive to the category of the parent only (2 branches of any type is acceptable)
 //categorical evaluation: 1 violation for every super-binary branching node
-function binMaxBranches(s, ptree, cat){
+function binMaxBranches(s, ptree, cat, n){
+	n = typeof(n)==='number'? n : 2;
 	var vcount = 0;
 	if(ptree.children && ptree.children.length){
-		if(ptree.cat === cat && ptree.children.length>2){
+		if(ptree.cat === cat && ptree.children.length>n){
 			//logreport("VIOLATION: "+ptree.id+" has "+ptree.children.length+" children!");
 			vcount++;
 		}
 		for(var i = 0; i<ptree.children.length; i++){
-			vcount += binMaxBranches(s, ptree.children[i], cat);
+			vcount += binMaxBranches(s, ptree.children[i], cat, n);
 		}
 	}
 	return vcount;
 }
 
+function ternMaxBranches(s, p, c){
+	return(binMaxBranches(s, p, c, 3));
+}
+
 //A combined binarity constraint (branch-counting)
-function binBranches(stree, ptree, cat){
+function binBranches(stree, ptree, cat, n){
+	n = typeof(n)==='number'? n : 2;
 	var minCount = binMinBranches(stree, ptree, cat);
-	var maxCount = binMaxBranches(stree, ptree, cat);
+	var maxCount = binMaxBranches(stree, ptree, cat, n);
 	return minCount+maxCount;
 }
 
@@ -787,24 +801,26 @@ function binMaxBrCatSensitive(s, ptree, cat){
 
 //sensitive to the category of the parent only (2 branches of any type is acceptable)
 //gradient evaluation: assigns 1 violation for every child past the first 2 ("third-born" or later)
-function binMaxBranchesGradient(s, ptree, cat){
+function binMaxBranchesGradient(s, ptree, cat, n){
+	n = typeof(n)==='number'? n : 2;
 	var vcount = 0;
 	if(ptree.children && ptree.children.length){
 		var numChildren = ptree.children.length;
-		if(ptree.cat === cat && numChildren>2){
-			var excessChildren = numChildren - 2;
+		if(ptree.cat === cat && numChildren>n){
+			var excessChildren = numChildren - n;
 			//logreport(excessChildren+ " VIOLATION(s): "+ptree.id+" has "+numChildren+" children!");
 			vcount += excessChildren;
 		}
 		for(var i = 0; i<ptree.children.length; i++){
-			vcount += binMaxBranchesGradient(s, ptree.children[i], cat);
+			vcount += binMaxBranchesGradient(s, ptree.children[i], cat, n);
 		}
 	}
 	return vcount;
 }
 
-function binBrGradient(s, ptree, cat){
-	return binMaxBranchesGradient(s, ptree, cat)+binMinBranches(s, ptree, cat);
+function binBrGradient(s, ptree, cat, n){
+	n = typeof(n)==='number'? n : 2;
+	return binMaxBranchesGradient(s, ptree, cat, n)+binMinBranches(s, ptree, cat);
 }
 
 /*TRUCKENBRODT-STYLE BINARITY*/
@@ -818,7 +834,8 @@ function binBrGradient(s, ptree, cat){
 * Sandalo & Truckenbrodt 2002: "Max-Bin: P-phrases consist of maximally two prosodic words"
 * Assigns a violation for every node in ptree that dominates more than two prosodic words.
 */
-function binMaxLeaves(s, ptree, c){
+function binMaxLeaves(s, ptree, c, n){
+	n = typeof(n)==='number'? n : 2;
 	var vcount = 0;
 	//the category we are looking for:
 	var target = pCat.nextLower(c);
@@ -827,11 +844,11 @@ function binMaxLeaves(s, ptree, c){
 	if(ptree.children && ptree.children.length){
 		var targetDesc = getDescendentsOfCat(ptree, target);
 		//console.log("there are " + targetDesc.length + " " + target + "s");
-		if(ptree.cat === c && targetDesc.length > 2){
+		if(ptree.cat === c && targetDesc.length > n){
 			vcount ++;
 		}
 		for(var i = 0; i < ptree.children.length; i++){
-			vcount += binMaxLeaves(s, ptree.children[i], c);
+			vcount += binMaxLeaves(s, ptree.children[i], c, n);
 		}
 	}
 	return vcount;
@@ -871,18 +888,19 @@ function binMax_minLeaves(s, ptree, c){
 * I don't know how to define this constraint in prose, but it's binMaxLeaves as
 * a gradient constraint instead of a categorical constraint.
 */
-function binMaxLeavesGradient(s, ptree, c){
+function binMaxLeavesGradient(s, ptree, c, n){
+	n = typeof(n)==='number'? n : 2;
 	var vcount = 0;
 	//the category we are looking for:
 	var target = pCat.nextLower(c);
 	//pCat.nextLower defined in prosodicHierarchy.js
 	if(ptree.children && ptree.children.length){
 		var targetDesc = getDescendentsOfCat(ptree, target);
-		if(ptree.cat === c && targetDesc.length > 2){
+		if(ptree.cat === c && targetDesc.length > n){
 			vcount += targetDesc.length - 2; //this makes the constraint gradient
 		}
 		for(var i = 0; i < ptree.children.length; i++){
-			vcount += binMaxLeavesGradient(s, ptree.children[i], c);
+			vcount += binMaxLeavesGradient(s, ptree.children[i], c, n);
 		}
 	}
 	return vcount;
@@ -912,12 +930,14 @@ function binMinLeaves(s, ptree, c){
 }
 
 //Combines the violations of maximal and minimal binarity (leaf-counting)
-function binLeaves(s, ptree, c){
-	return binMaxLeaves(s, ptree, c) + binMinLeaves(s, ptree, c);
+function binLeaves(s, ptree, c, n){
+	n = typeof(n)==='number'? n : 2;
+	return binMaxLeaves(s, ptree, c, n) + binMinLeaves(s, ptree, c);
 }
 
-function binLeavesGradient(s, ptree, c){
-	return binMaxLeavesGradient(s, ptree, c) + binMinLeaves(s, ptree, c);
+function binLeavesGradient(s, ptree, c, n){
+	n = typeof(n)==='number'? n : 2;
+	return binMaxLeavesGradient(s, ptree, c, n) + binMinLeaves(s, ptree, c);
 }
 
 //Helper function: given a node x, returns all the descendents of x that have category cat.
@@ -1077,6 +1097,11 @@ function binMaxHead(s, ptree, cat, options) {
 	}
 	return vcount;
 }
+//Modifications:
+//8-28-2020 Edward Shingler created functions ["notMutualCommand","dominates","pairExists","areAdjacent"] and constraints ["ccPhi","antiCCPhi","mutualSplit"]
+//These constraints take an boolean argument called "adjacent" defaulted to false. If true, then each function only looks at adjacent words that would cause violations.
+
+//DON'T FORGET TO INCLUDE ADJACENCY FOR ccPhi, antiCCPhi, mutualSplit
 function isInArray(myArray, x)
 {
 	var answer = false;
@@ -1195,25 +1220,10 @@ function hasParent(myTree, x)
 	}
 };
 
-function getPhis(pTree)
-{
-	var phiArray = [];
-	var nodes = getNodes(pTree);
-	for(var i = 0; i < nodes.length; i++)
-	{
-		var current = nodes[i];
-		if(current.cat == "phi")
-		{
-			phiArray.push(current);
-		}
-	};
-	return phiArray;
-};
-
-function phiMates(ptree,x,y)
+function phiMates(ptree,cat,x,y)
 {
 	var answer = false;
-	var phis = getPhis(ptree);
+	var phis = getDescendentsOfCat(ptree,cat);
 	for(var i = 0; i < phis.length; i++)
 	{
 		var currentPhi = phis[i];
@@ -1245,10 +1255,10 @@ function phiMates(ptree,x,y)
 	return answer;
 };
 
-function sharePhi(ptree,x,y)
+function sharePhi(ptree,cat,x,y)
 {
 	var answer = false;
-	var phis = getPhis(ptree);
+	var phis = getDescendentsOfCat(ptree,cat);
 	for(var i = 0; i < phis.length; i++)
 	{
 		var currentPhi = phis[i];
@@ -1280,43 +1290,61 @@ function sharePhi(ptree,x,y)
 	return answer;
 };
 
-function group(sTree,pTree)
+function dominates(node,x)
 {
-	var vcount = 0;
-	var sLeaves = getLeaves(sTree);
-	for(var i = 0; i < sLeaves.length; i++)
+	var check = false;
+	if(node.children && node.children.length)
 	{
-		var currentLeaf = sLeaves[i];
-		var comSet = commands(sTree,currentLeaf);
-		for(var j = 0; j < comSet.length; j++)
+		for(var i = 0; i < node.children.length; i++)
 		{
-			var currentCommandee = comSet[j];
-			if(!sharePhi(pTree,currentLeaf,currentCommandee))
+			var currentKid = node.children[i];
+			if(currentKid.id == x.id)
 			{
-				vcount++;
+				var check = true;
+				break;
+			}
+			else
+			{
+				var check = dominates(currentKid,x);
+				if(check==true){break;};
 			}
 		}
-	}
-	return vcount;
+	};
+	return check;
 };
 
-function groupMin(sTree,pTree)
+//Assigns a violation for each c-pair whose elements do not reside together in at least one phi.
+function group(sTree,pTree,cat,options)
 {
+	options = options || {};
 	var vcount = 0;
 	var sLeaves = getLeaves(sTree);
+	cPairs = [];
 	for(var i = 0; i < sLeaves.length; i++)
 	{
 		var currentLeaf = sLeaves[i];
 		var comSet = commands(sTree,currentLeaf);
 		for(var j = 0; j < comSet.length; j++)
 		{
-			var currentCommandee = comSet[j];
-			if(!phiMates(pTree,currentLeaf,currentCommandee))
+			if(!pairExists(cPairs, currentLeaf, comSet[j]))
 			{
-				vcount++;
+				if(!options.requireAdjacent || areAdjacent(sTree, currentLeaf, comSet[j], options))
+				{
+					cPairs.push([currentLeaf, comSet[j]]);
+				}
 			}
 		}
-	}
+	};
+	for(var i = 0; i < cPairs.length; i++)
+	{
+		if(options.requireMin && !phiMates(pTree,cat,cPairs[i][0],cPairs[i][1]))
+		{
+
+		} else if(!sharePhi(pTree,cat,cPairs[i][0],cPairs[i][1]))
+		{
+			vcount++;
+		}
+	};
 	return vcount;
 };
 
@@ -1352,41 +1380,152 @@ function mutualNonCommand(tree,x,y)
 	};
 };
 
-function splitNMC(sTree,pTree)
+//Returns true if EITHER node does not command the other.
+function notMutualCommand(tree,x,y)
 {
+	var cx = commands(tree,x);
+	var cy = commands(tree,y);
+	if(!isInArray(cx,y) || !isInArray(cy,x))
+	{
+		return true;
+	}
+	else
+	{
+		return false;
+	};
+};
+
+//Checks if two leaves are adjacent
+function areAdjacent(tree, x, y)
+{
+	if(nextLeaf(tree,x)[0]==y || nextLeaf(tree,y)[0]==x)
+	{
+		return true;
+	};
+	return false;
+};
+
+//Checks if an array has a pair of items
+function pairExists(pairs, x, y)
+{
+			var check = false;
+			for(var t = 0; t < pairs.length; t++)
+			{
+				var hasX = false;
+				var hasY = false;
+				for(var q = 0; q < pairs[t].length; q++)
+				{
+					if(x == pairs[t][q])
+					{
+						var hasX = true;
+					}
+					if(y == pairs[t][q])
+					{
+						var hasY = true;
+					}
+					if(hasX && hasY)
+					{
+						var check = true;
+						return check;
+					}
+				}
+			}
+			return false;
+};
+
+//Reflects CC-ϕ constraint (Kalivoda 2018). Argument "adjacent" refers to whether or not violations apply to only adjacent words or words throughout the tree.
+//cPair order is reversible, so is situations where two leaves mutually command, there is only one cPair.
+//if adjacent == true then violations are only added if it occurs between adjacent words. This is reflective of Kalivoda (2018) constraint wording, but Kalivoda has expressed uncertainty about the significance of this adjacency specification.
+function ccPhi(sTree,pTree,cat,options)
+{
+	options = options || {};
 	var vcount = 0;
 	var sLeaves = getLeaves(sTree);
+	var phis = getDescendentsOfCat(pTree,cat);
+	cPairs = [];
+	//Create list of c-pairs
 	for(var i = 0; i < sLeaves.length; i++)
 	{
-		var current = sLeaves[i];
-		if(nextLeaf(sTree,current).length)
+		var currentLeaf = sLeaves[i];
+		var comSet = commands(sTree,currentLeaf);
+		for(var j = 0; j < comSet.length; j++)
 		{
-			var next = nextLeaf(sTree,current)[0];
-			if(mutualNonCommand(sTree,current,next) && sharePhi(pTree,current,next))
+			if(!pairExists(cPairs, currentLeaf, comSet[j]))
+			{
+				if(!options.requireAdjacent || areAdjacent(sTree, currentLeaf, comSet[j]))
+				{
+					cPairs.push([currentLeaf, comSet[j]]);
+				}
+			}
+		}
+	};
+	//Assign violations based on c-pairs
+	for(var k = 0; k < cPairs.length; k++)
+	{
+		for(var p = 0; p < phis.length; p++)
+		{
+			if(dominates(phis[p], cPairs[k][0]) && !dominates(phis[p], cPairs[k][1]))
+			{
+				vcount++;
+			}
+			if(!dominates(phis[p], cPairs[k][0]) && dominates(phis[p], cPairs[k][1]))
 			{
 				vcount++;
 			}
 		}
-	}
+	};
 	return vcount;
 };
 
-function splitNMCmin(sTree,pTree)
+//Reflects ANTI-CC-ϕ constraint (Kalivoda 2018). Differs from MutualSplit in that violations apply when two nodes are mutually non-commanding. This is checked by the "mutualNonCommand" function, the only distinction between the two constraints.
+//nonCPairs order is reversible, so is situations where two leaves mutually command, there is only one cPair.
+function antiCCPhi(sTree,pTree,cat,options)
 {
+	options = options || {};
 	var vcount = 0;
 	var sLeaves = getLeaves(sTree);
+	var phis = getDescendentsOfCat(pTree,cat);
+	nonCPairs = [];
 	for(var i = 0; i < sLeaves.length; i++)
 	{
-		var current = sLeaves[i];
-		if(nextLeaf(sTree,current).length)
+		for(var p = 0; p < sLeaves.length; p++)
 		{
-			var next = nextLeaf(sTree,current)[0];
-			if(mutualNonCommand(sTree,current,next) && phiMates(pTree,current,next))
+			if(sLeaves[i] != sLeaves[p] && !pairExists(nonCPairs, sLeaves[i], sLeaves[p]) 
+			&& !(options.requireStrict && !notMutualCommand(sTree, sLeaves[i], sLeaves[p]))
+			&& !(!options.requireStrict && !mutualNonCommand(sTree, sLeaves[i], sLeaves[p])))
 			{
-				vcount++;
+				if(!options.requireAdjacent || areAdjacent(sTree, sLeaves[i], sLeaves[p]))
+				{
+					nonCPairs.push([sLeaves[i], sLeaves[p]]);
+				}
 			}
 		}
-	}
+	};
+	for(var k = 0; k < nonCPairs.length; k++)
+	{
+		var splitx = false;
+		var splity = false;
+		for(var p = 0; p < phis.length; p++)
+		{
+			if(dominates(phis[p], nonCPairs[k][0]) && !dominates(phis[p], nonCPairs[k][1]))
+			{
+				splitx = true;
+			}
+			if(!dominates(phis[p], nonCPairs[k][0]) && dominates(phis[p], nonCPairs[k][1]))
+			{
+				splity = true;
+			}
+		}
+		if(!splitx)
+		{
+			vcount++;
+		}
+		if(!splity)
+		{
+			vcount++;
+		}
+	};
+	return vcount;
 	return vcount;
 };/********************
 * Some implementations of EqualSisters (Myrberg 2013)
@@ -1398,11 +1537,13 @@ function splitNMCmin(sTree,pTree)
 /* Maximally categorical definition of equalSisters:
 *  Assign one violation for every set of sisters that do not all have the same category.
 *  That is, all of the following would have one violation: (a (b)(c)), (a b (c)), ((a) b c)
+*
+* Updated Oct. 2020 to make the category specification optional
 */
 function eqSis(s, ptree, cat){
 	var vcount = 0;
 	//base case: parent has category cat and is non-terminal
-	if(ptree.cat === cat && ptree.children && ptree.children.length){
+	if((!cat || ptree.cat === cat) && ptree.children && ptree.children.length){
 		var cat1 = ptree.children[0].cat;
 		for(var i=1; i<ptree.children.length; i++){
 			var child = ptree.children[i];
@@ -1719,6 +1860,9 @@ function exhaustChild(s, ptree){
 function exhaust1(s, ptree){
 	return exhaustChild(s, ptree);
 }
+
+/* Assign a violation for every node of category k that has one or more children of category < (k-1), for every k.
+*/
 function exhaustParent(s, ptree){
 //Assumes trees that obey Layering.
 	//Base case: if parent is a terminal, return 0 violations.
@@ -1744,7 +1888,56 @@ function exhaustParent(s, ptree){
 	}
 };
 
+// Tim, Su and Max workin' on a headedness constraint
 
+function headedness(stree, ptree, cat){
+    //code here
+    //should return integer
+    function getsViolation(node) {
+        if(ptree.children && ptree.children.length) {
+            let result = true;
+            for (let i = 0; i < node.children.length; i++) {
+                let child = node.children[i];
+                if(child.cat === node.cat || child.cat === pCat.nextLower(node.cat)) {
+                    result = false;
+                    /*  methods to know for categories on the hierarchy
+                        pCat.isHigher
+                        pCat.isLower
+                        pCat.nextHigher
+                        pCat.nextLower
+                    */
+                }
+            }
+            return result;
+        }
+        else {
+            return false;
+        }
+    }
+
+    function correctCategory(treeCat, constraintCat) {
+        if(constraintCat) {
+            return treeCat == constraintCat;
+        }
+        else {
+            return true;
+        }
+    }
+
+    let violations = 0;
+
+    if(getsViolation(ptree) && correctCategory(ptree.cat, cat)) {
+        violations ++;
+    }
+
+    if(ptree.children && ptree.children.length){
+        for(child of ptree.children){
+            violations += headedness(stree, child, cat);
+        }
+    }
+
+    return violations;
+}
 /*
 Defined in Ito & Mester (2013) as: "Every accented word must be the head of a (minimal) phi
 Assign a violation for each accented prosodic word that is not the head of a minimal phi."
@@ -1868,8 +2061,13 @@ function noLapseL(s, p, c){
 function accentFromId(node){
     if(!node.accent){
 		var nodeIdPref = node.id.split('_')[0];
-		if(nodeIdPref in ['a', 'A', 'u', 'U'])
-			node.accent = nodeIdPref;
+		if(['a', 'A'].indexOf(nodeIdPref)>=0){
+			node.accent = true;
+		}
+		else{
+			node.accent = false;
+		}
+			
 	}
         
     return node;
@@ -1993,7 +2191,7 @@ function matchSP(inputTree, pTree, sCat, options)
 {
 	options = options || {};
 	var sParent = inputTree;
-	markMinMax(sParent);
+	sParent = markMinMax(sParent, options);
 	if(sParent.cat === sCat)
 		logreport.debug("\tSeeking match for "+sParent.id + " in tree rooted in "+pTree.id);
 	var vcount = 0;
@@ -2039,7 +2237,7 @@ function hasMatch(sNode, pTree, options)
 {
 
 	var sLeaves = getLeaves(sNode);
-	markMinMax(pTree);
+	markMinMax(pTree, options);
 	if((options.anyPCat || catsMatch(sNode.cat, pTree.cat))
 	&& sameIds(getLeaves(pTree), sLeaves)
 	&& !(options.requireLexical && pTree.func)
@@ -2182,8 +2380,7 @@ function matchMinPS(s, ptree, cat, options) {
 	options.minSyntax = true;
 	options.minProsody = true;
   return matchPS(s, ptree, cat, options);
-}
-function noShift(stree, ptree, cat) {
+}function noShift(stree, ptree, cat) {
   // get list of terminals using helper function
   var sorder = getTerminals(stree);
   var porder = getTerminals(ptree);
@@ -2332,16 +2529,11 @@ function nonRecTruckenbrodt(s, parent, cat){
 * TODO Modify this so that it doesn't make all the assumptions above concerning the relationship of x and y.
 */
 function leafDifferenceSize(x,y){
-	try {
 		if(!(x instanceof Array) || !(y instanceof Array)){
 			console.log("x: "+x);
 			console.log("y: "+y);
 			throw new Error("Either x or y is not an array");
 		}
-	}
-	catch(err) {
-		displayError(err.message, err);
-	}
 	return y.length-x.length;
 }
 
@@ -2379,8 +2571,8 @@ function nonRecPairs(s, parent, c){ //markedness constraint, s argument is for c
 				/*
 				If the parent node is of the category c, count the number of nodes
 				dominated by this child that are also of the category c, including this
-				child itself, and add that number to the violatin count. This is where
-				violations are actually incured.
+				child itself, and add that number to the violation count. This is where
+				violations are actually incurred.
 				*/
 				vcount += numOfCats(child, c);
 			}
@@ -2488,9 +2680,20 @@ Assumes all nodes have valid and relevant categories
 (i.e., this is designed for prosodic trees and won't give the desired results
 if run on a syntactic tree that contains, e.g., bar levels).
 */
-function isMinimal(node){
-	var cat = node.cat;
+function isMinimal(node, lastCat){
+	//If a node and one of its children have the same category then the node is not minimal.
+	//The "lastCat" argument is only included in the function-internal call of isMinimal.  If one of 
+	//the children of the node-in-question is a "dummy" node, then it should be skipped and its children checked instead.
+	//isMinimal is called on the dummy node to check its children against "lastCat", the category of the node-in-question.
+
+	if(lastCat){
+		var cat = lastCat;
+	} else {
+		var cat = node.cat;
+	}
+	
 	var isMin = true;
+
 	//If the node is a leaf, it's minimal.
 	if(!node.children || !node.children.length)
 		return isMin;
@@ -2498,27 +2701,17 @@ function isMinimal(node){
 	var i = 0;
 	var chil = node.children;
 	while(isMin && i<chil.length){
-		if(chil[i].cat===cat)
+		//if a child is a dummy, we will have to skip over that dummy to see if any of its children have the same category.
+		if(chil[i].cat == "dummy"){
+			isMin = isMinimal(chil[i], cat)
+		} else if(chil[i].cat===cat){
 			isMin = false;
+		}
 		i++;
 	}
 	return isMin;
 }
 
-/*
-Returns true even if parent.cat is of a higher level than child.cat
-(i.e, assumes layering)
-To be revised!!!
-For the long run, Ozan suggests pre-processing trees to mark every node as minimal/maximal.
-*/
-function isMaximal(parent, child){
-	if(parent.cat===child.cat)
-		return false;
-	else return true;
-}
-
-// Move this to the prosodic hierarchy file probably?
-var sCat = ["cp", "xp", "x0"];
 
 /* Function that takes a tree and labels all the nodes in the tree as being
  * a minimal or maximal instance of whatever category k they are, where:
@@ -2526,6 +2719,31 @@ var sCat = ["cp", "xp", "x0"];
  * maximal = is not dominated by any nodes of category k
  * and layering is assumed (a node of category level k will never be dominated
  * by a node of category < k).
+ *
+ * There are two boolean options: 
+ * - options.requireLexical
+ * - options.requireOvertHead
+ *
+ * In the case that markMinMax is called with the option "requireLexical" or
+ * "requireOvertHead", nodes with the attribute "func" or "silentHead" are given
+ * a new category "dummy". These nodes are ignored when checking for maximality or
+ * minimality, only their children and parents are significant to the check.
+ * 
+ * Ex: given the syntax: [FuncP X [LexP1 Y [LexP2 Z ]]]
+ * When options.requireLexical===true, LexP1 will be labeled maximal 
+ * because it is the highest lexical phrase (i.e., it is the highest 
+ * XP within the set of lexical XPs that are visible to MatchXP-Lex)
+ *
+ * When checking for minimality, a node's category is checked against its children's.
+ * If all children have a different category from the node's, then it is minimal.
+ * If a child has the "dummy" category, then that dummy's children are checked as well.
+ *
+ * When checking for maximality, a node's category is checked against its parent's.
+ * If the node and its parent have different categories then it is maximal. The
+ * category of each node's parent is inherited as an attribute node.parentCat.
+ * If a child has the "dummy" category, then that dummy will be given the attribute
+ * node.lastCat in order to store the value of the parent. Every child of a dummy will
+ * inherit node.lastCat as its node.parentCat instead of "dummy".
  *
  * This can be called in a recursive function and is compatable with GEN's
  * re-use of certain prosodic subtrees, but when testing something that relies
@@ -2536,29 +2754,57 @@ var sCat = ["cp", "xp", "x0"];
  * ancestors before its maximality or minimality is used, your function will be
  * working with the correct values of isMin, isMax and parentCat.
  *
- * 7/29/19 refactor of an earlier version
+ * 10/26/20 update of an earlier version, now includes dummies.
  */
 
-function markMinMax(mytree){
+function markMinMax(mytree, options){
+	options = options || {};
+	if(options.requireLexical){
+		mytree = createDummies(mytree, 'func');
+	}
+	if(options.requireOvertHead){
+		mytree = createDummies(mytree, 'silent');
+	}
+	return markMinMaxInner(mytree, options)
+}
+
+function markMinMaxInner(mytree, options){
 	/* If parentCat property is not already defined for this node, it is probably
 	 * the root node. Non-root nodes get the property parentCat when this node's
 	 * children are marked below.
 	 */
+	options = options || {};
+
 	if (!mytree.hasOwnProperty('parentCat')){
 		mytree.parentCat = "is root"; //marks the root node
 	}
 
-	//mark maximal nodes
-	mytree.isMax = (mytree.cat !== mytree.parentCat);
+	//Store the info of the most recent cat in order to skip over dummy nodes
+	//except when the dummy node's parent is ALSO a dummy node, then lastcat should be passed
+	//down dummy generation after dummy generation until a normal node is reached to inherit
+	//it as the parentCat.
+	if(mytree.cat === "dummy"){
+		mytree.isMax = false;
+		mytree.isMin = false;
+		if(mytree.parentCat !== "dummy"){
+			mytree.lastCat = mytree.parentCat;
+		}
+	} else {
+		//mark maximality and minimality for node
+		mytree.isMax = (mytree.cat !== mytree.parentCat);
+		mytree.isMin = isMinimal(mytree);
 
-	//mark minimality (relies on isMinimal above)
-	mytree.isMin = isMinimal(mytree);
+		//recall stored parentCat after dummies are skipped
+		if(mytree.parentCat === "dummy"){
+			mytree.parentCat = mytree.lastCat;
+		}
+	}
 
 	if(mytree.children && mytree.children.length){
 		for(var i = 0; i < mytree.children.length; i++){
-			var child = mytree.children[i];
-			child.parentCat = mytree.cat; // set the property parentCat
-			mytree.children[i] = markMinMax(mytree.children[i]);
+			mytree.children[i].parentCat = mytree.cat; // set the property parentCat
+			mytree.children[i].lastCat = mytree.lastCat; //pass on lastCat
+			mytree.children[i] = markMinMaxInner(mytree.children[i], options);
 		}
 	}
 	return mytree;
@@ -2656,7 +2902,7 @@ function strongStart_Elfner(s, ptree, k){
 		//console.log(sisterCat);
 		//console.log(pCat.isLower(leftmostCat, sisterCat));
 
-		if((leftmostCat === k) && (pCat.isLower(leftmostCat, sisterCat)))
+		if(pCat.isLower(leftmostCat, sisterCat))
 		{
 			vcount++;
 			//console.log("strongStart_Elfner violation: "+ptree.children[0]+" "+ptree.children[1]);
@@ -2677,9 +2923,14 @@ function strongStart_Elfner(s, ptree, k){
 *  (intuitive strong start, according to the intuition of Bellik & Kalivoda 2019) 
 *  Updated Jan 2020 to penalize structures like (a b (c)) as well as (a (b c)). 
 *  The previous definition only looked at the first and second sisters.
+*  Updated Sept. 2020 to include an option to restrict this to the maximal node of category cat
+* Updated Oct. 2020 to make the restriction on parent category optional.
 */
 
-function strongStart(s, ptree, cat){
+function strongStart(s, ptree, cat, options){
+
+	options = options || {};
+	markMinMax(ptree);
 
 	//base case: ptree is a leaf or only has one child
 	if(!ptree.children){
@@ -2688,7 +2939,8 @@ function strongStart(s, ptree, cat){
 	
 	var vcount = 0;
 	
-	if(ptree.cat === cat && ptree.children.length>1){		
+	if((!cat || ptree.cat === cat) && ptree.children.length>1 && !(options.maximal && !ptree.isMax)){
+		//If we only want to look at maximal nodes and this one isn't maximal, then don't evaluate it further.
 		var leftmostCat = ptree.children[0].cat;
 		for(var i = 1; i<ptree.children.length; i++){
 			var sisterCat = ptree.children[i].cat;
@@ -2705,7 +2957,7 @@ function strongStart(s, ptree, cat){
 	// Recurse
 	for(var i=0; i<ptree.children.length; i++){
 		child = ptree.children[i];
-		vcount += strongStart(s, child, cat);
+		vcount += strongStart(s, child, cat, options);
 	}
 	
 	return vcount;
@@ -2749,7 +3001,7 @@ function strongStart_SubCat(s, ptree, cat){
 	return vcount;
 }
 
-/* Assign a violation for every node of category cat whose leftmost daughter constituent
+/* Assign a violation for every node of category > w whose leftmost daughter constituent
 *  is of category < w (a syllable or foot).
 *  (proposed by Bennett, Elfner & McCloskey 2016 on Irish clitic placement)
 */
@@ -2762,7 +3014,7 @@ function strongStartClitic(s, ptree, cat){
 	
 	var vcount = 0;
 	
-	if(ptree.cat === cat && ptree.children.length>1){		
+	if(pCat.isHigher(ptree.cat, 'w') && ptree.children.length>1){		
 		var leftmostCat = ptree.children[0].cat;
 
 		if(pCat.isLower(leftmostCat, 'w'))
@@ -2778,7 +3030,73 @@ function strongStartClitic(s, ptree, cat){
 	}
 	
 	return vcount;
-}/*KEY FOR REPRESENTATIONS
+
+}
+
+/* Strong start (cat init)
+ * Assign one violation for every node of category k that is initial in a node of category
+ * k+2 and sister to a node of category k+1
+ */
+function strongStartInit(stree, ptree, cat){
+	let offendingNodes = totalDescender(ptree, cat, false);
+	let result = [];
+	for(var i = 0; i < offendingNodes.length; i++){
+		if(result.indexOf(offendingNodes[i]) < 0){result.push(offendingNodes[i]);}
+	}
+	return result.length;
+
+	//Function that takes a tree and returns all nodes in the tree for which violation returns true
+	// tree = current sub-tree
+	// category = specified category in constraint call
+	// catInitial -- what is this?
+	function totalDescender(tree, category, catInitial){
+		let result = [];
+		kPlus2 = pCat.isHigher(tree.cat, pCat.nextHigher(category));
+		if(tree.children && tree.children.length){
+			//Base case: evaluate current node for violation
+			if(violation()){
+				result.push(tree.children[0]);
+			}
+
+			//If catInitial is false and there is a category two steps up the prosodic hierarchy
+			if(!catInitial && kPlus2){
+				result = result.concat(totalDescender(tree.children[0], category, tree.cat));
+				//Add violations from a recursive call on the first child
+				//with catInitial set to the current tree's category
+			}
+			else{
+				result = result.concat(totalDescender(tree.children[0], category, catInitial));
+			}
+
+			//Recursive call on each child of current tree
+			for(var i = 1; i < tree.children.length; i++){
+				result = result.concat(totalDescender(tree.children[i], category, false));
+			}
+		}
+		return result;
+
+		/* If the first child in the current tree is lower in category than its sister, return true
+		*/
+		function violation(){
+			let bool = true;
+			let parent = tree;
+			let init = tree.children[0];
+			let peninit = tree.children[1];
+			// No violation if the category of the initial child isn't the specified category.
+			// We should consider whether this should actually be: the specified category *or lower*. i.e., if you get a violation for {w phi}, you would certainly also get a violation for {ft phi}
+			if(init && init.cat !== category){bool = false;}
+			// No violation if the immediate sister to the initial node is not of a higher category
+			// This definitely needs to be revised to look at all sisters.
+			if(peninit && !pCat.isHigher(peninit.cat, init.cat)){bool = false;}
+			// No violation if the tree's category isn't at least 2 categories up from the specified category AND catInitial (passed in from calling function totalDescender)
+			if(!pCat.isHigher(parent.cat, pCat.nextHigher(category)) && !catInitial){bool = false;}
+			return bool;
+		}
+	}
+}
+
+
+/*KEY FOR REPRESENTATIONS
 	
 	<	left of stressed syllable
 	>   right of stressed syllable

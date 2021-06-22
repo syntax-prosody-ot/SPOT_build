@@ -759,9 +759,6 @@ function binMaxBranches(s, ptree, cat, n){
 	return vcount;
 }
 
-function ternMaxBranches(s, p, c){
-	return(binMaxBranches(s, p, c, 3));
-}
 
 //A combined binarity constraint (branch-counting)
 function binBranches(stree, ptree, cat, n){
@@ -1061,15 +1058,33 @@ and in that case would need a type-sensitive implementation of getLeaves
 
 /*
 	Head binarity for Japanese compounds
+	Assign a violation for every node of category cat
+	whose head (as marked by markHeads + options.side)
+	is not binary
+
+	Depends on markHeads, defined in main/constraints/recursiveCatEvals.js
+
+	options:
+	- side: 'left' or 'right', defaults to 'right' (for Japanese). Which side are heads marked on?
+	- minimal: true or false, defaults to false. Assess minimal binarity instead of maximal binarity.
 */
 function binMaxHead(s, ptree, cat, options) {
+	function assessBin(a, minimal){
+		if(minimal) return a < 2;
+		else return a > 2;
+	}
+
 	options = options || {};
 	options.side = options.side || 'right';
 	if(typeof options.side !== 'string' || !(options.side === 'right' || options.side == 'left')){
 		console.warn('The option "side" for binMaxHead must be "left" or "right" (default)');
 		options.side = right;
 	}
-	markHeads(ptree, options.side);
+	//Only run markheads if mytree hasn't been marked for heads
+	if (ptree.headsMarked !== options.side){
+		markHeads(ptree, options.side);
+	}
+	
 	var vcount = 0;
 
 	if(ptree.children && ptree.children.length){
@@ -1077,14 +1092,15 @@ function binMaxHead(s, ptree, cat, options) {
 			for(var i = 0; i<ptree.children.length; i++){
 				if(ptree.children[i].head === true) {
 					if(ptree.children[i].children){
-						if(ptree.children[i].children.length > 2) {
+						var numChil = ptree.children[i].children.length;
+						if(assessBin(numChil, options.minimal)) {
 							vcount++;
 						}
 					}
 					else {
 						var id = ptree.children[i].id.split('_');
 						id = id[0];
-						if(id.length > 2) {
+						if(assessBin(id.length, options.minimal)) {
 							vcount++;
 						}
 					}
@@ -1097,7 +1113,27 @@ function binMaxHead(s, ptree, cat, options) {
 	}
 	return vcount;
 }
-//Modifications:
+
+/** Minimal binarity for heads
+ * Implemented to help with Max Kaplan's Ojibwe analysis 
+ * (for the iota level)
+ */
+function binMinHead(s, p, cat, options){
+	options = options || {};
+	options.minimal = true;
+	if(!options.side) options.side = 'left'; //default to left-headed for Ojibwe reasons
+	return binMaxHead(s, p, cat, options);
+}
+
+/* Ternarity constraints
+*/
+function ternMaxBranches(s, p, c){
+	return(binMaxBranches(s, p, c, 3));
+}
+
+function ternMaxLeaves(s, p, c){
+	return(binMaxLeaves(s, p, c, 3));
+}//Modifications:
 //8-28-2020 Edward Shingler created functions ["notMutualCommand","dominates","pairExists","areAdjacent"] and constraints ["ccPhi","antiCCPhi","mutualSplit"]
 //These constraints take an boolean argument called "adjacent" defaulted to false. If true, then each function only looks at adjacent words that would cause violations.
 
@@ -2141,7 +2177,7 @@ function sameIds(a1, a2){
 }
 
 
-function matchPS(sParent, pParent, pCat, options)
+function matchPS(sTree, pParent, pCat, options)
 //Assign a violation for every prosodic node of type pCat in pParent that doesn't have a corresponding syntactic node in sTree,
 //where "corresponding" is defined as: dominates all and only the same terminals, and has the corresponding syntactic category
 //Assumes no null terminals.
@@ -2149,7 +2185,6 @@ function matchPS(sParent, pParent, pCat, options)
 //is set to true. The same goes for the syntactic trees
 {
 	options = options || {};
-	var sTree = sParent;
 	var flippedOptions = {};
 	flippedOptions.maxSyntax = options.maxProsody || false;
 	flippedOptions.nonMaxSyntax = options.nonMaxProsody || false;
@@ -2321,6 +2356,13 @@ function matchMaxSyntax(sTree, pTree, sCat, options){
 	return matchSP(sTree, pTree, sCat, options);
  }
 
+//Match for any prosodic constituent
+function matchSPAny(sTree, pTree, sCat, options){
+	options = options || {};
+	options.anyPCat = true;
+	return matchSP(sTree, pTree, sCat, options);
+}
+
  //Match all non-minimal syntactic nodes
 function matchNonMinSyntax(sTree, pTree, sCat, options){
 	options = options || {};
@@ -2380,6 +2422,18 @@ function matchMinPS(s, ptree, cat, options) {
 	options.minSyntax = true;
 	options.minProsody = true;
   return matchPS(s, ptree, cat, options);
+}
+
+/** Bidirectional or "symmetrical" Match
+ *  No options because this constraint is for the purpose of simplifying 
+ *  investigations of interactions between well-formedness constraints.
+ *  Options can be added later.
+ **/
+function matchSPPS(s, ptree, scat){
+	var spVcount = matchSP(s, ptree, scat);
+	var pcat = categoryPairings[scat];
+	var psVcount = matchPS(s, ptree, pcat);
+	return spVcount + psVcount;
 }function noShift(stree, ptree, cat) {
   // get list of terminals using helper function
   var sorder = getTerminals(stree);
@@ -2822,6 +2876,7 @@ function markHeadsJapanese(mytree){
  * 	side: 'left' or 'right' (default)
  */
 function markHeads(mytree, side){
+
 	if(typeof side !== 'string' || !(side === 'right' || side === 'left')){
 		console.warn('"side" argument of markHeads() must be "right" or "left", default to "right"');
 		side = 'right';
@@ -2843,6 +2898,8 @@ function markHeads(mytree, side){
 			}
 		}
 	}
+	//Indicate that this tree has been marked for heads, and on which side
+	mytree.headsMarked = side;
 	return mytree;
 
 	function markHeadsInner(child, previousChildren, side){
@@ -2882,7 +2939,9 @@ function starCat(s, p, c){
 	return occurances;
 }/* Assign a violation for every node whose leftmost daughter constituent is of type k
 *  and is lower in the prosodic hierarchy than its sister constituent immediately to its right: *(Kn Kn-1)
-*  Elfner's StrongStart.
+*  Elfner's StrongStart(k).
+*
+*  If k is absent, use any category (Selkirk's StrongStart which Elfner also uses).
 */
 
 function strongStart_Elfner(s, ptree, k){
@@ -2902,7 +2961,9 @@ function strongStart_Elfner(s, ptree, k){
 		//console.log(sisterCat);
 		//console.log(pCat.isLower(leftmostCat, sisterCat));
 
-		if(pCat.isLower(leftmostCat, sisterCat))
+		// If not indexed to any particular category k, then we don't care what leftmostCat is
+		// Otherwise we want leftmostCat to equal k.
+		if((!k || leftmostCat===k) && (pCat.isLower(leftmostCat, sisterCat)))
 		{
 			vcount++;
 			//console.log("strongStart_Elfner violation: "+ptree.children[0]+" "+ptree.children[1]);
@@ -2913,6 +2974,132 @@ function strongStart_Elfner(s, ptree, k){
 	for(var i=0; i<ptree.children.length; i++){
 		child = ptree.children[i];
 		vcount += strongStart_Elfner(s, child, k);
+	}
+	
+	return vcount;
+}
+
+/* Hsu 2016, p. 195
+	"STRONGSTART(k/p)
+	Assign a violation mark for every prosodic constituent whose leftmost daughter
+	constituent is of type k and is lower in the Prosodic Hierarchy than its sister
+	constituent immediately to the right, where k is at the left edge of a prosodic
+	constituent p.
+
+	The relevant notion of 'left edge' is defined as follows:
+	(57) A prosodic constituent k is at the left edge of prosodic constituent p iff.
+	a. p dominates k, and
+	b. no prosodic constituent that both dominates k and is dominated by p has a
+	leftmost daughter constituent that does not contain k."
+
+	Note that the violations are for each parent with immediate daughter k at its edge (i.e., for every k), not for every p with k at its left edge at any depth.
+*/
+
+function strongStart_Hsu(s, ptree, k, p, node){
+
+	/* Since we cannot search up the tree, the original tree must be retained 
+	to determine whether a node of cat p dominates a node of cat k. We keep a 
+	reference to the root ptree, while node refers to the object that is 
+	currently being assessed as a weakly-starting parent of a node with category k.
+	*/
+	node = node || ptree;
+
+	//base case: node is a leaf or only has one child
+	if(!node.children){
+		return 0;
+	}
+	
+	var vcount = 0;
+	
+	// if node.children[0].cat === k and has a sibling, then compare it with its sibling as well as for domination by a node of cat p along the left edge.
+	if(node.children.length>1 && node.children[0].cat === k){		
+		if((pCat.isLower(node.children[0].cat, node.children[1].cat)) && catDomsIdAtLeftEdge(ptree, p, node.id)){ // searches tree for node of cat p dominating this node of cat k
+			vcount++;
+		}
+	}
+	
+	// Recurse
+	for(var i=0; i<node.children.length; i++){
+		child = node.children[i];
+		vcount += strongStart_Hsu(s, ptree, k, p, child);
+	}
+	
+	return vcount;
+}
+
+//Wrapper functions for strongStart_Hsu to deal with the problem of having two separate category arguments
+function strongStart_Hsu_phi(s, ptree, k)
+{
+	return strongStart_Hsu(s, ptree, k,'phi');
+}
+
+function strongStart_Hsu_iota(s, ptree, k)
+{
+	return strongStart_Hsu(s, ptree, k, 'i');
+}
+
+//can't be parameterized to a category at present -- k is ignored
+function strongEndLocal(s, ptree, k){
+
+	//base case: ptree is a leaf or only has one child
+	if(!ptree.children){
+		return 0;
+	}
+	
+	var vcount = 0;
+	
+	if(ptree.children.length>1){		
+		var rightmostCat = ptree.children[ptree.children.length-1].cat;
+		var sisterCat = ptree.children[ptree.children.length-2].cat;
+		
+		//console.log(leftmostCat);
+		//console.log(sisterCat);
+		//console.log(pCat.isLower(leftmostCat, sisterCat));
+
+		if(pCat.isLower(rightmostCat, sisterCat))
+		{
+			vcount++;
+			//console.log("strongEndLocal violation: "+ptree.children[0]+" "+ptree.children[1]);
+		}
+	}
+	
+	// Recurse
+	for(var i=0; i<ptree.children.length; i++){
+		child = ptree.children[i];
+		vcount += strongEndLocal(s, child, k);
+	}
+	
+	return vcount;
+}
+
+/* Constraint from Sabbagh (2014, p. 62) "Word Order and Prosodic-Structure Constraints in Tagalog":
+
+Weak Start: *(π₁π₂..., where π₁ > π₂
+A prosodic constituent begins with a leftmost daughter that is no higher on the prosodic hierarchy than the constituent that immediately follows.
+*/
+function weakStartLocal(s, ptree, k){
+
+	//base case: ptree is a leaf or only has one child
+	if(!ptree.children){
+		return 0;
+	}
+	
+	var vcount = 0;
+	
+	if(ptree.children.length>1){		
+		var leftmostCat = ptree.children[0].cat;
+		var sisterCat = ptree.children[1].cat;
+
+		if(pCat.isHigher(leftmostCat, sisterCat))
+		{
+			vcount++;
+		}
+	}
+	
+	// Recurse
+	for(var i=0; i<ptree.children.length; i++){
+		child = ptree.children[i];
+		vcount += weakStartLocal(s, child, k);
 	}
 	
 	return vcount;
@@ -3014,7 +3201,8 @@ function strongStartClitic(s, ptree, cat){
 	
 	var vcount = 0;
 	
-	if(pCat.isHigher(ptree.cat, 'w') && ptree.children.length>1){		
+	//Corrected 2/5/21: this was checking that ptree.children.length>1, which is not correct since strongStartClitic as defined in BEM doesn't care how many children are present
+	if(pCat.isHigher(ptree.cat, 'w') && ptree.children.length){		
 		var leftmostCat = ptree.children[0].cat;
 
 		if(pCat.isLower(leftmostCat, 'w'))
@@ -3031,6 +3219,43 @@ function strongStartClitic(s, ptree, cat){
 	
 	return vcount;
 
+}
+
+/** Category-independent version of strongStartClitic.
+ * Proposed by Jennifer Bellik in SS-ES stringency chapter in AOT book
+ * as a generalized version of the hyperlocally-scoped SS constraint
+ * in Bennett, Elfner, & McCloskey 2016. May also be conceived of as
+ * Exhaustivity enforced at the left edge only.
+ * 
+ * "Assign a violation for every node of category k whose first daughter
+ * is of category < k-1." (Bellik 2021)
+ * 
+*/
+function ssHypLoc(stree, ptree, cat){
+	var vcount = 0;
+
+	//base case: ptree is a leaf or only has one child
+	if(!ptree.children){
+		return vcount;
+	}
+	
+	if(ptree.children.length){		
+		var parentCat = ptree.cat;
+		var firstChildCat = ptree.children[0].cat;
+
+		if(pCat.isLower(firstChildCat, pCat.nextLower(parentCat)))
+		{
+			vcount++;
+		}
+	}
+	
+	// Recurse
+	for(var i=0; i<ptree.children.length; i++){
+		child = ptree.children[i];
+		vcount += ssHypLoc(stree, child, cat);
+	}
+	//Code for going through the tree and evaluate for some structure goes here
+	return vcount;
 }
 
 /* Strong start (cat init)
@@ -3096,6 +3321,57 @@ function strongStartInit(stree, ptree, cat){
 }
 
 
+/** A helper function for strongStart_Hsu() that determines 
+ * whether a tree contains a node of category cat that has 
+ * a node with id "id" at its left edge at any depth. 
+ * 
+ * Arguments:
+ * - tree: a prosodic or syntactic tree to search through
+ * - cat: a string representing a node category
+ * - id: a string representing the id of a node to look for at a left edge
+ * 
+ * Returns true if tree contains a node of category cat which has, 
+ * at its left edge, a node with the specified id. 
+ * Otherwise returns false.
+ * 
+ * Depends on hasIdAtLeftEdge()
+ */
+function catDomsIdAtLeftEdge(tree, cat, id){
+	if(!tree.children){
+		return false;
+	}
+	if(tree.cat === cat && (hasIdAtLeftEdge(tree, id) || tree.id === id)){
+		return true;
+	}
+	else {
+		for(var i=0; i<tree.children.length; i++){
+			if(catDomsIdAtLeftEdge(tree.children[i], cat, id)){
+				return true;
+			}
+		}
+	}
+}
+
+/**A helper function for catDomsIdAtLeftEdge(). 
+ * 
+ * Arguments: 
+ * - tree: a prosodic or syntactic tree to search through
+ * - id: a string representing the id of a node to look for
+ * 
+ * Returns true if the tree has a node with the specified id at its left edge at any depth.
+ * Otherwise, returns false.
+*/
+function hasIdAtLeftEdge(tree, id){
+	if(!tree.children){
+		return false;
+	}
+	if(tree.children[0].id === id){
+		return true;
+	}
+	else {
+		return hasIdAtLeftEdge(tree.children[0], id);
+	}
+}
 /*KEY FOR REPRESENTATIONS
 	
 	<	left of stressed syllable
@@ -3996,7 +4272,20 @@ function hasMatch2(sLeaves, pTree) {
 	});
 	return result;
 }
-/* Built-in Analyses */
+/** Functions for built-in analyses and for saving, loading, and clearing analyses on the interface: 
+ * clearInputs() - possibly should be moved to interface_display_helpers.js
+ * clearAnalysis() - possibly should be moved to interface_display_helpers.js
+ * 
+ * built_in_con(input): helper function
+ * built_in_input(myTrees): helper function
+ * my_built_in_analysis(...): template function for all built-in analyses
+ * various functions to set up individual built-in analyses
+ * built_in(analysis): chooses which analysis setup function to run based on value passed in by interface
+ * record_analysis()
+ * saveAnalysis()
+ * loadAnalysis()
+ * 
+*/
 
 function clearInputs(){
   let inputOptions = spotForm['autoInputOptions'];
@@ -4474,6 +4763,156 @@ function built_in_Chamorro_RB(){
   my_built_in_analysis(gen, false, chamorrotrees, con);
 }
 
+/* Richard Bibbs's Chamorro clitic analysis as presented at LSA2021
+*/
+function built_in_Chamorro_2021(){
+  var gen = {obeysHeadedness: true, obeysNonrecursivity: false, obeysExhaustivity: ['i'], cliticMovement: true};
+  var con = [{name: 'alignLeft', cat:'xp'}, {name: 'alignRight', cat:'xp'}, {name:'noShift'}, {name: 'equalSistersAdj'}, {name: 'binMinBranches', cat:'phi'}, {name: 'strongStart_Elfner', cat:'syll'}];
+  var chamorrotrees = [
+                        {
+                            "id": "XP",
+                            "cat": "xp",
+                            "children": [
+                                {
+                                    "cat": "xp",
+                                    "id": "XP_3",
+                                    "children": [
+                                        {
+                                            "id": "a",
+                                            "cat": "x0"
+                                        }
+                                    ]
+                                },
+                                {
+                                    "cat": "xp",
+                                    "id": "DP",
+                                    "children": [
+                                        {
+                                            "id": "wp",
+                                            "cat": "clitic"
+                                        }
+                                    ]
+                                }
+                            ]
+                        },
+                        {
+                            "id": "XP",
+                            "cat": "xp",
+                            "children": [
+                                {
+                                    "cat": "xp",
+                                    "id": "XP_4",
+                                    "children": [
+                                        {
+                                            "id": "a",
+                                            "cat": "x0"
+                                        },
+                                        {
+                                            "cat": "xp",
+                                            "id": "XP_5",
+                                            "children": [
+                                                {
+                                                    "id": "b",
+                                                    "cat": "x0"
+                                                }
+                                            ]
+                                        }
+                                    ]
+                                },
+                                {
+                                    "cat": "xp",
+                                    "id": "DP",
+                                    "children": [
+                                        {
+                                            "id": "wp",
+                                            "cat": "clitic"
+                                        }
+                                    ]
+                                }
+                            ]
+                        },
+                        {
+                            "id": "XP",
+                            "cat": "xp",
+                            "children": [
+                                {
+                                    "cat": "xp",
+                                    "id": "XP_4",
+                                    "children": [
+                                        {
+                                            "cat": "xp",
+                                            "id": "XP_5",
+                                            "children": [
+                                                {
+                                                    "id": "a",
+                                                    "cat": "x0"
+                                                }
+                                            ]
+                                        },
+                                        {
+                                            "cat": "xp",
+                                            "id": "XP_6",
+                                            "children": [
+                                                {
+                                                    "id": "b",
+                                                    "cat": "x0"
+                                                }
+                                            ]
+                                        }
+                                    ]
+                                },
+                                {
+                                    "cat": "xp",
+                                    "id": "DP",
+                                    "children": [
+                                        {
+                                            "id": "wp",
+                                            "cat": "clitic"
+                                        }
+                                    ]
+                                }
+                            ]
+                        },
+                        {
+                            "id": "XP",
+                            "cat": "xp",
+                            "children": [
+                                {
+                                    "cat": "xp",
+                                    "id": "XP_4",
+                                    "children": [
+                                        {
+                                            "cat": "xp",
+                                            "id": "XP_5",
+                                            "children": [
+                                                {
+                                                    "id": "a",
+                                                    "cat": "x0"
+                                                }
+                                            ]
+                                        },
+                                        {
+                                            "id": "b",
+                                            "cat": "x0"
+                                        }
+                                    ]
+                                },
+                                {
+                                    "cat": "xp",
+                                    "id": "DP",
+                                    "children": [
+                                        {
+                                            "id": "wp",
+                                            "cat": "clitic"
+                                        }
+                                    ]
+                                }
+                            ]
+                        }
+                    ];
+  my_built_in_analysis(gen, false, chamorrotrees, con);
+}
+
 function built_in(analysis) {
   if(analysis === "irish") {
     built_in_Irish();
@@ -4514,12 +4953,10 @@ function built_in(analysis) {
   if(analysis=== "chamorro"){
     built_in_Chamorro_RB();
   }
+  if(analysis==="chamorro2021"){
+    built_in_Chamorro_2021();
+  }
 }
-
-/* Save Analysis:
- * functionality to save the options, constraints and inputs of an analysis to
- * be loaded later by the existing built-in analysis functionality
- */
 
 /* Record Analysis:
  * function to gather all of the options, constraints and inputs currently in
@@ -4753,6 +5190,1964 @@ function loadAnalysis(file){
     }
   }
 }
+/**
+ * Functions that handle automatic syntactic tree generation
+ * on the html interface
+ */
+
+//Getter function that helps with terminal string generation
+function getStringsList() {
+    return genStringsList;
+}
+
+
+/** Helper function for generating syntactic trees
+ *  Called by genTerminalStrings() which is called by autoGenInputTree()
+ */
+function addFixedTerminalStringsToTable(){
+    var length = spotForm.inputToGenAuto.length;
+    if(length === undefined) {
+        length = 1;
+    }
+    var inputString = spotForm.inputToGenAuto.value;
+    var fixedStringList = [];
+    
+
+    for(var i=0; i<length; i++){
+        if(length > 1) {
+            inputString = spotForm.inputToGenAuto[i].value;
+        }
+        if(inputString !== "") {
+            fixedStringList.push(inputString);
+        }
+    }
+    if(fixedStringList.length > 0) {
+        displayStringsTable(fixedStringList);
+        genStringsList = fixedStringList;
+    }
+}
+
+
+/**
+ * CALLED BY "GENERATE TREES"
+ * Functions that handle generation and display of syntactic trees 
+ * from user-specifications on the interface.
+ */
+
+// Adds input field so user can add another terminal string
+function addTerminalString(){
+    var length = spotForm.inputToGenAuto.length;
+    if(length === undefined) {
+        length = 1;
+    }
+    var newLength = length + 1;
+    length = length.toString();
+    newLength = newLength.toString();
+    document.getElementById('str'+length).insertAdjacentHTML('afterend', "<p id='str"+newLength+"'>String of terminals "+newLength+": <input type='text' name='inputToGenAuto'></p>");
+    document.getElementById('autoDoneMessage').style.display = 'none';
+}
+
+ // Display tables of automatically generated syntactic trees
+function displayTable(sTreeList) {
+    var treeTable = treeToTable(sTreeList);
+    document.getElementById('autoTreeBox').innerHTML += treeTable;
+}
+
+// Helper for displayTable and thus autoGenInputTree:
+// A function to create an html table from sTreeList, the list of syntactic trees
+function treeToTable(sTreeList) {
+    var htmlChunks = ['<table class="auto-table"><tbody>'];
+    var i = 1;
+    for(var s in sTreeList) {
+        var parTree = parenthesizeTree(sTreeList[s]);
+        htmlChunks.push('<tr>');
+        htmlChunks.push('<td>' + i + "." + '</td>');
+        htmlChunks.push('<td>' + parTree + '</td>');
+        htmlChunks.push('</tr>');
+        i++;
+    }
+    htmlChunks.push('</tbody></table>');
+    return htmlChunks.join('');
+}
+
+function makeAndDisplaySTrees(){
+    document.getElementById('autoDoneMessage').style.display = 'inline-block';
+    autoGenInputTree();
+    document.getElementById('autoTreeArea').style.display = 'block';
+    document.getElementById('syntax-tree-switch').checked = true;
+    document.getElementById('syntax-switch-text').innerHTML = 'Hide syntactic trees';
+}
+
+
+var sTreeList;
+window.getAutoSTreeList = function(){
+    return sTreeList;
+}
+
+/**
+ * Function that automatically generates input syntactic trees
+ * from user input on the interface (interface1.html)
+ * 
+ * Called by: makeAndDisplaySTrees()
+ * 
+ * Calls: 
+ * - genTerminalStrings()
+ * - getStringsList()
+ * - displayTable()
+ * 
+ * Modifies sTreeList
+ */
+function autoGenInputTree() {
+    genTerminalStrings();
+    var strings = getStringsList();	//this is both fixed strings and strings generated by combinations/permutations
+    var length = strings.length;
+
+    sTreeList = undefined;
+    document.getElementById('autoTreeBox').innerHTML = "";
+
+    for(var i=0; i<length; i++){
+        var inputString = strings[i];
+
+        // allow adjuncts and remove mirror images
+        var autoInputOptions = {};
+        var optionBox = spotForm.autoInputOptions;
+        for(var j = 0; j < optionBox.length; j++) {
+            if(optionBox[j].value == "noAdjuncts" || optionBox[j].value == "noBarLevels") {
+                autoInputOptions[optionBox[j].value] =! optionBox[j].checked;
+            }
+            else {
+                autoInputOptions[optionBox[j].value]=optionBox[j].checked;
+            }
+        }
+
+        // head requirements
+        var headReq = document.getElementById('head-req').value;
+        if(headReq !== 'select') {
+            var headSideVal = headReq;
+        }
+        autoInputOptions.headSide = headSideVal;
+
+        // add clitics directly under root
+        if(document.getElementById('add-clitics').checked) {
+            var addCliticsVal = document.getElementById('add-clitics').value;
+            if(document.getElementById('add-clitics-left').checked) {
+                addCliticsVal = 'left';
+            }
+        }
+        autoInputOptions.addClitics = addCliticsVal;
+
+        // root, recursive terminal, category
+        autoInputOptions.rootCategory = spotForm['autoInputOptions-rootCategory'].value;
+        autoInputOptions.recursiveCategory = spotForm['autoInputOptions-recursiveCategory'].value;
+        autoInputOptions.terminalCategory = spotForm['autoInputOptions-terminalCategory'].value;
+
+        if(autoInputOptions.recursiveCategory === 'x0' || autoInputOptions.noUnary){
+            autoInputOptions.noAdjacentHeads = false;
+        }
+
+        // console.log(autoInputOptions)
+
+        if(inputString !== "") {
+            var currSTreeList = sTreeGEN(inputString, autoInputOptions);
+            displayTable(currSTreeList);
+            if(sTreeList) {
+                sTreeList = sTreeList.concat(currSTreeList);
+            }
+            else {
+                sTreeList = currSTreeList;
+            }
+        }
+    }
+    //console.log(sTreeList)
+}/**
+ * Functions that handle generation of terminal strings on the interface
+ */
+var terminalStringGenInputMsg = "You must supply at least one list of terminals in order to generate combinations and permutations of terminals.";
+var genStringsList;
+
+/**
+ * Helper function for genTerminalStrings() and addCombinationsPermuatationsToTable()
+ * Checks if any list of terminals has been provided in "Generate combinations and permutations"
+ */ 
+function terminalGenInputPresent(){
+		
+    var numTerminalStrings = spotForm.genStringsInput.length;
+    if(numTerminalStrings === undefined) {
+        numTerminalStrings = 1;
+    }
+    var inputPresent = false;
+    var i = 0;
+    while(!inputPresent && i<numTerminalStrings){
+        inputPresent = (numTerminalStrings==1 ? spotForm.genStringsInput.value !== "": spotForm.genStringsInput[i].value !== "");
+        i++;
+    }
+
+    return inputPresent;
+}
+
+/**
+ * Validates user inputs for generating combinations and permutations of terminals
+ * and generates terminal strings according to those specifications if everything is valid.
+ * 
+ * Displays errors if:
+ * - any min or max field is missing
+ * - any max or min field is non-numeric
+ * - any max or min field is more than 10 or less than 1
+ * - min field is more than max field
+ * 
+ * Displays warnings if:
+ * - any max or min field is more than 5
+ * 
+ * Depends on:
+ * - terminalGenInputPresent()
+ * - generateTerminalStrings(): in inputCandidateGenerator.js [?]
+ * - displayStringsTable()
+ * 
+ * Changes genStringsList
+ */
+function addCombinationsPermuatationsToTable(){
+    //Begin input validation for generating combinations/permutations (generateTerminalStrings())
+    var inputIsFive = false; //if the min or max input is 5 flag
+    var minOrMaxProblem = false; //if there is a min or max input problem flag
+    var problem = ""; //string indicating what the min or max problem is
+    var stringTerminalInput, minTerminalInput, maxTerminalInput; //the list of terminals input, min input, and max input
+    var inputCheckNeeded = false; //if there is more than one input then check for input being empty or not is needed
+
+    var numTerminalStrings = spotForm.genStringsInput.length;
+    if(numTerminalStrings === undefined) {
+        numTerminalStrings = 1;
+    }
+
+    
+    /*Only bother to validate everything else if at least one list of terminals is provided.
+    If terminalGenInputPresent() returns false, then all the List of terminals are empty. */
+    if(terminalGenInputPresent()){
+        terminalStringsValidationLoop:
+        for(var i=0; i<numTerminalStrings; i++){
+            /*checking if the length is more than 1*/
+            if (numTerminalStrings > 1){
+                inputCheckNeeded = true;
+                stringTerminalInput = spotForm.genStringsInput[i].value;
+                minTerminalInput = spotForm.genStringsMin[i].value;
+                maxTerminalInput = spotForm.genStringsMax[i].value;
+            }else{
+                inputCheckNeeded = false;
+                minTerminalInput = spotForm.genStringsMin.value;
+                maxTerminalInput = spotForm.genStringsMax.value;
+            }
+            if ((inputCheckNeeded == true && stringTerminalInput !== "") || inputCheckNeeded == false){
+                /*checking if min or max is empty*/
+                if (minTerminalInput === "" || maxTerminalInput === ""){
+                    minOrMaxProblem = true;
+                    problem = "Empty";
+                    break terminalStringsValidationLoop;
+                }
+                /*checking if min or max is not a number*/
+                if (isNaN(minTerminalInput) || isNaN(maxTerminalInput)){
+                    minOrMaxProblem = true;
+                    problem = "NonNumber";
+                    break terminalStringsValidationLoop;
+                }
+                /*checking if min or max is less than or equal to 0*/
+                if (Number(minTerminalInput) <= 0 || Number(maxTerminalInput) <= 0){
+                    minOrMaxProblem = true;
+                    problem = "Zero";
+                    break terminalStringsValidationLoop;
+                }
+                /*checking if min or max is more than or equal to 10*/
+                if (Number(minTerminalInput) >= 10 || Number(maxTerminalInput) >= 10){
+                    minOrMaxProblem = true;
+                    problem = "Ten";
+                    break terminalStringsValidationLoop;
+                }
+                /*checking if min is greater than max*/
+                if (Number(maxTerminalInput) <  Number(minTerminalInput)){
+                    minOrMaxProblem = true;
+                    problem = "MinGreaterThanMax";
+                    break terminalStringsValidationLoop;
+                }
+                /*checking if min or max is more than or equal to 5*/
+                if (Number(minTerminalInput) >= 5 || Number(maxTerminalInput) >= 5){
+                    inputIsFive = true;
+                }
+            }
+        }
+        /*if there is an error with min or max input*/
+        if (minOrMaxProblem == true){
+            if (problem === "Empty"){
+                displayError("Min or Max input missing in 'Generate combinations and permutations'.");
+            }else if(problem === "NonNumber"){
+                displayError("Min or Max input is not a number in 'Generate combinations and permutations.'");
+            }else if(problem === "Zero"){
+                displayError("Min and Max inputs must be larger than 0 in 'Generate combinations and permutations.'");
+            }else if(problem === "Ten"){
+                displayError("Min and Max inputs must be less than 10 in 'Generate combinations and permutations.'");
+            }else if(problem === "MinGreaterThanMax"){
+                displayError("Min input must be smaller than Max input in 'Generate combinations and permutations.'");
+            }
+        }else{
+            /*confirm user wants to continue if the input is greater than or equal to 5 */
+            if (inputIsFive == true){
+                if(!confirm("Min or Max input is greater than or equal to 5 which may cause your browser to freeze due to too many terminal strings being generated. Confirm that you want to continue.")){
+                    throw new Error ('Min or Max input is greater than or equal to 5.');
+                }
+            }
+            var inputList = spotForm.genStringsInput.value;
+            var min = spotForm.genStringsMin.value;
+            var max = spotForm.genStringsMax.value;
+
+            for(var i=0; i<numTerminalStrings; i++){
+                if(numTerminalStrings > 1) {
+                inputList = spotForm.genStringsInput[i].value;
+                min = spotForm.genStringsMin[i].value;
+                max = spotForm.genStringsMax[i].value;
+                }
+                /* Actual calculation of terminal strings here*/
+                if(inputList !== "") {
+                    inputList = inputList.trim().split(' ');
+                    var currGenStringsList = generateTerminalStrings(inputList, min, max)
+                    displayStringsTable(currGenStringsList);
+
+                    if(genStringsList) {
+                        genStringsList = genStringsList.concat(currGenStringsList);
+                    }
+                    else {
+                        genStringsList = currGenStringsList;
+                    }
+                }
+            }
+        }
+    }
+    //else{
+    //	console.warn(terminalStringGenInputMsg);
+    //}
+}
+
+
+
+
+/* Generate and display terminal strings
+   This includes: 
+   - fixed strings taken from "inputToGenAuto", and 
+   - strings to run generateTerminalStrings() on, taken from "genStringsInput"
+   - TODO rename these fields!
+*/
+function genTerminalStrings() {
+    //Remove any previously generated strings from the table of generated strings
+    document.getElementById('genStringsBox').innerHTML = "";
+    genStringsList = undefined; //genStringsList is declared at the top of this file
+
+    addFixedTerminalStringsToTable();
+    
+    //Provide warnings if an input is present but the fieldset is closed, or vice versa.
+    if(terminalGenInputPresent() && !document.getElementById("stringGeneration").classList.contains("open")){
+        displayWarning("You provided an input(s) to 'Generate combinations and permutations', but have closed that section. Your input there, which is not currently visible, will be included in calculations unless you delete it.");
+    }
+    /*if(document.getElementById("stringGeneration").classList.contains("open") && !terminalGenInputPresent()){
+        displayWarning(terminalStringGenInputMsg);
+    }*/
+
+    //Validate inputs to generateTerminalStrings, and run it.
+    addCombinationsPermuatationsToTable();
+    
+}
+
+
+// TerminalStringsGen helper: create table from generated terminal strings list
+function stringToTable(genStringsList, index) {
+    var htmlChunks = ['<table class="auto-table string-table" id="string-table-' + index + '"><tbody>'];
+    var i = 1;
+    for(var s in genStringsList) {
+        var string = genStringsList[s];
+        htmlChunks.push('<tr>');
+        htmlChunks.push('<td>' + i + "." + '</td>');
+        htmlChunks.push('<td>' + string + '</td>');
+        htmlChunks.push('</tr>');
+        i++;
+    }
+    htmlChunks.push('</tbody></table>');
+    return htmlChunks.join('');
+}
+
+// TerminalStringsGen helper: display generated terminal strings in table
+function displayStringsTable(genStringsList) {
+    var tables = document.getElementsByClassName("string-table");
+    var index = tables.length + 1;
+    var stringsTable = stringToTable(genStringsList, index);
+    document.getElementById('genStringsBox').innerHTML += stringsTable;
+    addThickLine(genStringsList, index);
+}
+
+// TerminalStringsGen helper: add thicker line between generated strings of different lengths
+function addThickLine(genStringsList, index) {
+    var sheet = document.styleSheets[document.styleSheets.length - 1];
+    for(var i = 0; i < genStringsList.length - 1; i++) {
+        var currString = genStringsList[i].split(' ');
+        var nextString = genStringsList[i + 1].split(' ');
+        if(currString.length < nextString.length) {
+            var row = i + 1;
+            sheet.addRule('#string-table-' + index + ' tbody > :nth-child(' + row + ')', 'border-bottom: 3px solid black;', 0);
+        }
+    }
+}
+
+// TerminalStringsGen helper: remove thicker line between generated strings of different lengths before regenerating strings
+function deleteThickLine() {
+    var sheet = document.styleSheets[document.styleSheets.length - 1];
+    var rules = 0;
+    for(var i = 0; i < sheet.cssRules.length; i++) {
+        if(sheet.cssRules[i].cssText.includes('#string-table')) {
+            rules++;
+        }
+    }
+    for(var i = 0; i < rules; i++) {
+        sheet.deleteRule(0);
+    }
+}
+
+// TerminalStringsGen helper: runs when "Generate terminal strings" is clicked
+function makeAndDisplayTerminalStrings(){
+    if(terminalGenInputPresent()){
+        deleteThickLine();
+        genTerminalStrings();
+        document.getElementById('genStringsArea').style.display = 'block';
+        document.getElementById('gen-strings-switch').checked = true;
+        document.getElementById('strings-switch-text').innerHTML = 'Hide generated terminals strings';
+    }
+    else{
+        displayError(terminalStringGenInputMsg);
+    }
+}
+/**
+ * Functions that manage what content is displayed or hidden on interface1.html
+ * without actually generating content
+ * 
+ * Related to input GEN (syntactic trees):
+ * - changeInputTabs
+ * - addTerminalStringList
+ * - showHideGeneratedTerminalStrings
+ * - displaySettingsRecursiveX0
+ * - displaySettingsRecursiveCP
+ * - dipslaySettingsRecursiveXP
+ * 
+ * - barLevelsHeadReq
+ * - showHideSTreeCliticOptions
+ * - showHideGeneratedSTrees
+ * 
+ * Related to output GEN (prosodic trees):
+ * - toneInfoBlock
+ * - showMaxBranching
+ * - exhaustivityDisplay
+ * - movementOptionsDisplay
+ * - toneOptionDisplay
+ * - markProsodicHeadsDisplay
+ * 
+ * Related to constraints:
+ * - openCloseFieldset
+ * - showMore
+ * 
+ * Related to clearing:
+ * - clearTableau
+ * - clearAll
+ */
+
+
+// === INPUT GEN DISPLAY FUNCTIONS ===
+
+/* Manages tab display for GEN: Input parameters:
+*  Automatic vs. Manual tree building
+*/
+function changeInputTabs(from, to) {
+	var fromButton = 	document.getElementById(from);
+	var toButton = document.getElementById(to);
+	// if from === 'inputButton'
+	var show = 	document.getElementById('treeUI');
+	var hide = document.getElementById('inputOptions');
+	if(from === 'goButton') {
+		show = 	document.getElementById('inputOptions');
+		hide = document.getElementById('treeUI');
+	}
+	show.style.display = 'block';
+	toButton.style.backgroundColor = 'white';
+	toButton.style.borderColor = '#3A5370';
+	if(hide.style.display === 'block') {
+		hide.style.display = 'none';
+		fromButton.style.backgroundColor = '#d0d8e0';
+		fromButton.style.borderColor = '#d0d8e0';
+	}
+}
+
+/** Input Gen: Terminal strings
+ * Adds a set of input fields for generating combinations and permutations of terminal strings */
+function addTerminalStringList() {
+    var length = spotForm.genStringsInput.length;
+    if(length === undefined) {
+        length = 1;
+    }
+    var newLength = length + 1;
+    length = length.toString();
+    newLength = newLength.toString();
+    document.getElementById('list'+length).insertAdjacentHTML('afterend', "<div id='list"+newLength+"'>List of terminals "+newLength+": <input type='text' name='genStringsInput'><p>Number of terminals in generated strings:</p><p class='genStringsNum'>Min: <input type='text' name='genStringsMin' class='genStringsNumBox' style='margin-left: 4px'></p><p class='genStringsNum'>Max: <input type='text' name='genStringsMax' class='genStringsNumBox'></p></div>");
+    document.getElementById('autoDoneMessage').style.display = 'none';
+}
+
+/** Input Gen: Terminal strings
+ * Shows or hides generated terminal strings */
+function showHideGeneratedTermStrings() {
+    if (document.getElementById('genStringsArea').style.display === 'none' && document.getElementById('gen-strings-switch').checked){
+        document.getElementById('genStringsArea').style.display = 'block';
+        document.getElementById('strings-switch-text').innerHTML = 'Hide generated terminals strings';
+    }
+    else{
+        document.getElementById('genStringsArea').style.display = 'none';
+        document.getElementById('strings-switch-text').innerHTML = 'Show generated terminals strings';
+    }
+}
+
+/** Input Gen for trees: syntactic parameters
+ *  When x0 is selected as the recursive category, bar levels are irrelevant
+ *  and head side is also irrelevant
+*/
+function displaySettingsRecursiveX0() {
+    if(document.getElementsByName('autoInputOptions-recursiveCategory')[2].checked == true) {
+        // console.log("xo checked")
+        var x = document.getElementsByName("autoInputOptions")[noBarLevelsIndex];
+        if(x.checked === true) {
+            x.checked = false;
+        }
+        x.disabled = true;
+        var y = document.getElementById('head-req').options;
+        y[1].disabled = true;
+        y[2].disabled = true;
+        y[3].disabled = true;
+        y[4].disabled = true;
+    }
+}
+
+/** Input Gen for trees: syntactic parameters*/
+function displaySettingsRecursiveCP() {
+    if(document.getElementsByName('autoInputOptions-recursiveCategory')[0].checked == true) {
+        // console.log("cp checked")
+        var x = document.getElementsByName("autoInputOptions")[noBarLevelsIndex];
+        x.disabled = false;
+        var y = document.getElementById('head-req').options;
+        y[1].disabled = false;
+        y[2].disabled = false;
+        if(x.checked) {
+            y[3].disabled = false;
+            y[4].disabled = false;
+        }
+        else {
+            y[3].disabled = true;
+            y[4].disabled = true;
+        }
+    }
+}
+
+/** Input Gen for trees: syntactic parameters*/
+function displaySettingsRecursiveXP() {
+    if(document.getElementsByName('autoInputOptions-recursiveCategory')[1].checked == true) {
+        // console.log("xp checked")
+        var x = document.getElementsByName("autoInputOptions")[noBarLevelsIndex];
+        x.disabled = false;
+        var y = document.getElementById('head-req').options;
+        y[1].disabled = false;
+        y[2].disabled = false;
+        if(x.checked) {
+            y[3].disabled = false;
+            y[4].disabled = false;
+        }
+        else {
+            y[3].disabled = true;
+            y[4].disabled = true;
+        }
+    }
+}
+
+
+
+/** Helper for Gen: Input parameters 
+ *  Handles the interaction between enabling/disabling visibility of bar levels
+ *  and the options for head alignment settings. 
+ *  If bar levels are not treated as XPs, then more settings are relevant bc
+ *  ternary structures will be included.
+ */
+function barLevelsHeadReq() {
+    var x = document.getElementsByName("autoInputOptions")[noBarLevelsIndex];
+    var y = document.getElementById('head-req').options;
+
+    if(x.checked === false) {    
+        // Heads must be perfectly left-aligned
+        y[1].disabled = false;
+        // Heads must be perfectly right-aligned
+        y[2].disabled = false;
+        // Heads must be on the left edge
+        y[3].disabled = false;
+        // Heads must be on the right edge
+        y[4].disabled = false;
+    }
+    else {
+        y[1].disabled = false;
+        y[2].disabled = false;
+        y[3].disabled = true;
+        y[4].disabled = true;
+    }
+}
+
+function showHideSTreeCliticOptions(){
+    if(document.getElementById('add-clitics').checked) {
+        document.getElementById('add-clitics-row').style.display = 'block';
+    }
+    else {
+        document.getElementById('add-clitics-row').style.display = 'none';
+    }
+}
+
+function showHideGeneratedSTrees(){
+    if (document.getElementById('autoTreeArea').style.display === 'none' && document.getElementById('syntax-tree-switch').checked){
+        document.getElementById('autoTreeArea').style.display = 'block';
+        document.getElementById('syntax-switch-text').innerHTML = 'Hide syntactic trees';
+    }
+    else{
+        document.getElementById('autoTreeArea').style.display = 'none';
+        document.getElementById('syntax-switch-text').innerHTML = 'Show syntactic trees';
+    }
+}
+
+
+//===OUTPUT GEN DISPLAY FUNCTIONS===
+
+/* Manages the info blocks for 
+   GEN: Output parameters > Tree marking options > Annotated with tones 
+*/
+function toneInfoBlock(language){
+	var content = document.getElementById("tonesInfoContent");
+	var japaneseContent = "Tokyo Japanese: the left edge of &phi; is marked with a rising boundary tone (LH), accented words receive an HL on the accented syllable, and H tones that follow a pitch drop (HL) within the maximal &phi; are downstepped (!H). (See: Pierrehumbert and Beckman 1988; Gussenhoven 2004; Ito and Mester 2007) Accents, boundary tones, and downstep in Lekeitio Basque are realized with the same tones as in Tokyo Japanese.";
+	var irishContent = "Conamara Irish (Elfner 2012): The left edge of the non-minimal &phi; is marked with a rising boundary tone (LH), and the right edge of every &phi; is marked with a falling boundary tone (HL).";
+	var format = "font-size: 13px; color: #555; margin-left: 25px; display: table-cell";
+	if (language == "japanese"){
+		if (content.innerHTML == japaneseContent){
+			content.style = "display: none";
+			content.innerHTML = '';
+		}
+		else{
+			content.style = format;
+			content.innerHTML = japaneseContent;
+		}
+	}
+	if (language === "irish"){
+		if (content.innerHTML == irishContent){
+			content.style = "display: none";
+			content.innerHTML = '';
+		}
+		else {
+			content.style = format;
+			content.innerHTML = irishContent;
+		}
+	}
+}
+
+/* Adds or hides an inline textfield for 
+    GEN: Output options > Restrict maximum number of branches 
+*/
+function showMaxBranching() {
+	var text = document.getElementById('maxBranchingText');
+	var checkBox = document.getElementById('maxBranchingBox')
+	if(checkBox.checked) {
+		text.style.display = 'inline';
+	}
+	else{
+		text.style.display = 'none';
+	}
+}
+
+function exhaustivityDisplay(){
+    if (document.getElementById('exhaustivityDetailOption1').style.display === 'none' && document.getElementById('exhaustivityBox').checked){
+        document.getElementById('exhaustivityDetailOption1').style.display = 'table-cell';
+        document.getElementById('exhaustivityDetailOption2').style.display = 'table-cell';
+    }
+    else{
+        document.getElementById('exhaustivityDetailOption1').style.display = 'none';
+        document.getElementById('exhaustivityDetailOption2').style.display = 'none';
+        //if (genOptions['obeysExhaustivity']){
+        //	genOptions['obeysExhaustivity'] = false;
+        //}
+
+    }
+}
+
+function movementOptionsDisplay(){
+    var movementSpecifications = document.getElementById('movementSpecification');
+    if (movementSpecifications.style.display === 'none' && document.getElementById('movementOptions').checked){
+        movementSpecifications.style.display = 'block';
+    }
+    else{
+        movementSpecifications.style.display = 'none';
+    }
+}
+
+function toneOptionDisplay(){
+    if (document.getElementById('tonesSelectionRow').style.display === 'none' && document.getElementById('annotatedWithTones').checked){
+        document.getElementById('tonesSelectionRow').style.display = '';
+    }
+    else{
+        document.getElementById('tonesSelectionRow').style.display = 'none';
+    }
+
+}
+
+function markProsodicHeadsDisplay(){
+    if ((document.getElementById('binMaxHead').checked || document.getElementById('binMinHead').checked) && !document.getElementById('showHeads').checked){
+        document.getElementById('treeDisplayOptions').setAttribute('class','open');
+        document.getElementById('showHeads').checked = true;
+        displayWarning('"Mark prosodic heads" in "Tree marking option" will remain checked while BinMaxHead or BinMinHead is active.');
+    }
+    if (document.getElementById('showHeads').checked){
+        document.getElementById('headSideOptions').style.display = '';
+    }
+    else{
+        document.getElementById('headSideOptions').style.display = 'none';
+    }
+}
+
+//===CONSTRAINTS===
+
+//Opens or closes fieldsets when their header or arrow is clicked
+function openCloseFieldset(event) {
+    var el = event.target;
+    var legend = el.closest('legend');
+    if (legend) {
+        var fieldset = legend.closest('fieldset');
+        if (fieldset) {
+            fieldset.classList.toggle('open');
+            return;
+        }
+    }
+
+
+    if (el.classList.contains('info')) {
+        el.classList.toggle('showing')
+    }
+}
+
+/* Shows/hides the "Show more..." section of each constraint fieldset*/
+function showMore(constraintType, moreText="Show more...") {
+	var x = document.getElementById(constraintType);
+	var showMore = constraintType + "Show";
+	var y = document.getElementById(showMore);
+
+  if (x.style.display === "block") {
+    x.style.display = "none";
+	y.innerHTML = moreText;
+  } else {
+    x.style.display = "block";
+		y.innerHTML = "Show less...";
+  }
+}
+
+
+
+//===CLEARING RESULTS===
+
+/**
+ * Clears the results container; called when the user clicks on the "Clear results" button
+ */
+function clearTableau() {
+	document.getElementById('results-container').innerHTML = "";
+	document.getElementById('results-container').className = "";
+}
+
+/** Clears all inputs from interface */
+function clearAll(){
+    clearAnalysis();
+    document.getElementById('treeUIinner').style.display = 'none';
+    document.getElementById('built-in-dropdown').value = 'select';
+    document.getElementById('fileUpload').value = '';
+    document.getElementById('chooseFilePrompt').style = "font-size: 13px; color: #555";
+    document.getElementById('chooseFile').style = "display: none";
+    document.getElementById('save/load-dialog').innerHTML = '';
+}/**
+ * ERROR AND WARNING FUNCTIONS used on interface1.html
+ */
+
+
+// Function that closes error and warning messages in interface
+function closeButton() {
+	var close = document.getElementsByClassName("closebtn");
+	var i;
+
+	for (i = 0; i < close.length; i++) {
+		close[i].onclick = function() {
+			var div = this.parentElement;
+			div.style.opacity = "0";
+			setTimeout(function() {
+				div.style.display = "none";
+			}, 600);
+		}
+	}
+}
+
+//Display a red Error! box at the top of the page
+function displayError(errorMsg, error) {
+	if(error !== undefined) {
+		console.error(error);
+	}
+	else {
+		console.error("Error: " + errorMsg);
+	}
+
+	var spotForm = document.getElementById('spotForm');
+	if (!spotForm) {
+		alert("Error: " + errorMsg);
+		return;
+	}
+
+	var div = document.getElementById("error");
+	div.children[2].innerHTML = errorMsg;
+	div.style.display = "block";
+	div.style.opacity = "100";
+	closeButton();
+}
+
+// Display orange Warning! box at the top of the page
+function displayWarning(warnMsg) {
+	console.warn("Warning: " + warnMsg);
+
+	var spotForm = document.getElementById('spotForm');
+	if (!spotForm) {
+		alert("Warning: " + warnMsg);
+		return;
+	}
+
+	var div = document.getElementById("warning");
+	div.children[2].innerHTML = warnMsg;
+	div.style.display = "block";
+	div.style.opacity = "100";
+	closeButton();
+}/**
+ * Load function for interface1.html
+ * Adds many event listeners with functions defined in the other .js files in the interface_JS directory.
+ */
+
+var treeUIsTreeMap = {};
+
+window.addEventListener('load', function(){
+
+	window.spotForm = document.getElementById('spotForm');
+
+	if (!window.spotForm) {
+		console.error('no spot form');
+		return;
+	}
+
+	spotForm.addEventListener('change', function(ev) {
+		var target = ev.target;
+		if (target.name === 'constraints') {
+			var catRow = target.closest('div .constraint-selection-table').classList;
+			if (target.checked) {
+				catRow.add('constraint-checked');
+			}
+			else {
+				catRow.remove('constraint-checked');
+			}
+			//console.log(catRow);
+		}
+
+	});
+
+	spotForm.addEventListener("change", function(){
+		document.getElementById("save/load-dialog").innerHTML = '';
+	});
+
+	// Get Results button
+	spotForm.onsubmit=sendToTableau;
+
+	//treeEditOptions - dropdown list
+	document.getElementById('treeEditOption').onchange = sendToTableau;
+
+	document.body.addEventListener('click', openCloseFieldset); //Opening and closing fieldsets (mostly for constraints)
+	document.getElementById("clearAllButton").addEventListener("click", clearAll);
+
+	/** ===SHOWING/HIDING OPTIONS UNDER GEN: OUTPUT PARAMETERS=== */
+	document.getElementById('exhaustivityBox').addEventListener('click', exhaustivityDisplay);
+	document.getElementById('movementOptions').addEventListener('click', movementOptionsDisplay)
+	document.getElementById('annotatedWithTones').addEventListener('click', toneOptionDisplay);
+	document.getElementById('showHeads').addEventListener('click', markProsodicHeadsDisplay);
+
+	/** ===CHECKING showHeads IF BinMaxHead CHECKED=== */
+	document.getElementById('binMaxHead').addEventListener('click', markProsodicHeadsDisplay);
+	document.getElementById('binMinHead').addEventListener('click', markProsodicHeadsDisplay);
+
+	//===MANUAL TREE-BUILDER===
+
+	//Code for generating the JS for a syntactic tree
+	var treeTableContainer = document.getElementById('treeTableContainer');
+
+	//Open the tree making GUI when the users clicks "Build syntax"
+	document.getElementById('goButton').addEventListener('click', function(){
+		changeInputTabs('inputButton', 'goButton');
+	});
+
+
+	//Set up the table for manual tree creation...
+	document.getElementById('buildButton').addEventListener('click', setUpTreeBuilderTable);
+
+	document.getElementById('treeUImakeParent').addEventListener('click', treeUIMakeParent);
+	document.getElementById('treeUIdeleteNodes').addEventListener('click', deleteTreeUINodes);
+	document.getElementById('treeUIclearSelection').addEventListener('click', treeUIClearSelection);
+
+	
+	//Look at the html tree and turn it into a JSON tree. Put the JSON in the following textarea.
+	document.getElementById('htmlToJsonTreeButton').addEventListener('click', htmlToJSONTree);
+
+	//Show/hide the tree code area
+	document.getElementById('tree-code-box').addEventListener('click', showHideTreeCode);
+
+	//Legacy code that should probably get deleted
+	document.getElementById('danishJsonTreesButton').addEventListener('click', function() {
+		spotForm.sTree.value = JSON.stringify(danishTrees(), null, 4);
+	});
+
+	treeTableContainer.addEventListener('input', function(e) {
+		var target = e.target;
+		var idPieces = target.id.split('-');
+		//console.log(idPieces);
+		var treeIndex = idPieces[2];
+		var nodeId = idPieces[1];
+		var isCat = idPieces[0] === 'catInput';
+		treeUIsTreeMap[treeIndex].nodeMap[nodeId][isCat ? 'cat' : 'id'] = target.value;
+		document.getElementById('doneMessage').style.display = 'none';
+	});
+
+
+	treeTableContainer.addEventListener('click', function(e) {
+		var node = e.target;
+		if (e.target.classList.contains('stemSide') || e.target.classList.contains('inputContainer')) {
+			while (node && !node.classList.contains('treeNode')) {
+				node = node.parentElement;
+			}
+		}
+		if (node.classList.contains('treeNode')) {
+			node.classList.toggle('selected');
+			refreshNodeEditingButtons();
+		}
+	});
+
+
+
+
+	// ===Switch tabs between manual and automatic input creation===
+	document.getElementById('inputButton').addEventListener('click', function(){
+		changeInputTabs('goButton', 'inputButton');
+	});
+
+
+	// ===AUTO INPUT GEN ===
+	// show and display addClitics options
+	document.getElementById('add-clitics').addEventListener('change', showHideSTreeCliticOptions);
+
+	var autoInputOptions = document.getElementsByName("autoInputOptions");
+    // Locate noBarLevels option
+    window.noBarLevelsIndex;
+    for (var i = 0; i < autoInputOptions.length; i++) {
+        if (autoInputOptions[i].value === "noBarLevels") {
+            noBarLevelsIndex = i;
+            break;
+        }
+    }
+	document.getElementsByName("autoInputOptions")[noBarLevelsIndex].addEventListener('click', barLevelsHeadReq);
+	document.getElementsByName('autoInputOptions-recursiveCategory')[2].addEventListener('click', displaySettingsRecursiveX0);
+	document.getElementsByName('autoInputOptions-recursiveCategory')[0].addEventListener('click', displaySettingsRecursiveCP);
+	document.getElementsByName('autoInputOptions-recursiveCategory')[1].addEventListener('click', displaySettingsRecursiveXP);
+
+	// "Generate trees" done button for auto input Gen
+	document.getElementById('autoGenDoneButton').addEventListener('click', makeAndDisplaySTrees);
+
+
+	// Button to add a terminal string for automatic stree generation
+	document.getElementById('addString').addEventListener('click', addTerminalString);
+	
+	// Show/hide generated syntactic trees
+	document.getElementById('syntax-tree-switch').addEventListener('click', showHideGeneratedSTrees);
+
+	/** Check for any changes that should remove the message "The trees in the analysis 
+	 * are up-to-date" from the input Gen display:
+	 * - syntax parameters
+	 * - terminal strings
+	 * - list of terminals
+	* */ 
+	function hideDoneMessage(){
+		document.getElementById('autoDoneMessage').style.display = 'none';
+	}
+	document.getElementById('syntax-parameters').addEventListener('change', hideDoneMessage);
+	document.getElementById('syntax-parameters-clitics').addEventListener('change', hideDoneMessage);
+	document.getElementById('syntax-parameters-phonology').addEventListener('change', hideDoneMessage);
+	document.getElementById('terminalStrings').addEventListener('change', hideDoneMessage);
+	document.getElementById('listOfTerminals').addEventListener('change', hideDoneMessage);
+
+	
+	
+
+	// ===GENERATE TERMINAL STRINGS===
+	// Button to add list of terminals 
+	document.getElementById('addList').addEventListener('click', addTerminalStringList);
+
+	// Show/hide generated terminal strings
+	document.getElementById('gen-strings-switch').addEventListener('click', showHideGeneratedTermStrings);
+
+	// Button to generate terminal strings
+	document.getElementById('genStringsDoneButton').addEventListener('click', makeAndDisplayTerminalStrings);
+
+
+});/** 
+ * Functions for handling sending the user's inputs on interface1.html to makeTableau() and for downloading it.
+ *  saveAs()
+ *  getCheckedConstraints()
+ *  getInputsForTableau()
+ *  getOutputGenOptions()
+ *  getTableauOptions(genOptions)
+ *  checkForLongInputs(genOptions)
+ *  sendToTableau(e)
+ */
+
+var myGenInputs = {
+    pString: '',
+    sTrees: {}
+};
+
+//downloads an element to the user's computer. Originally defined up by saveTextAs()
+function saveAs(blob, name) {
+	var a = document.createElement("a");
+	a.display = "none";
+	a.href = URL.createObjectURL(blob);
+	a.download = name;
+	document.body.appendChild(a);
+	a.click();
+	document.body.removeChild(a);
+}
+
+// Helper for sendToTableau(): builds a list of checked constraints and their info
+function getCheckedConstraints(){
+    var constraintSet = [];
+    for(var i=0; i<spotForm.constraints.length; i++){
+        var constraintBox = spotForm.constraints[i];
+        if(constraintBox.checked){
+            var constraint = constraintBox.value;
+            //Figure out all the categories selected for the constraint
+            if(spotForm['category-'+constraint]){
+                var constraintCatSet = spotForm['category-'+constraint];
+                if (constraintCatSet.length === undefined) {
+                    constraintCatSet = [constraintCatSet];
+                }
+                for(var j=0; j<constraintCatSet.length; j++){
+                    var categoryBox = constraintCatSet[j];
+                    if(categoryBox.checked){
+                        var category = categoryBox.value;
+                        if(constraint === "alignLeftMorpheme" || constraint === 'alignRightMorpheme') {
+                            category = category.split(' ').join(';');
+                        }
+                        if(constraint === "binMaxHead") {
+                            constraintSet.push('binMaxHead-' + category + '-{"side" : "' + spotForm['genOptions-showHeads'].value + '"}')
+                        }
+                        //Figure out selected match options for the constraint
+                        else if(spotForm['option-'+constraint]){
+                            var constraintOptionSet = spotForm['option-'+constraint];
+                            var options = {};
+                            if(constraintOptionSet.length){
+                                for(var k=0; k<constraintOptionSet.length; k++){
+                                    var optionBox = constraintOptionSet[k];
+                                    //If lexical or overtly headed is checked, then option is true
+                                    if(optionBox.checked) {
+                                        options[optionBox.value] = true;
+                                    }
+                                    //If option is in a select, not a checkbox, and the option is not "any", then option is true
+                                    if(optionBox.checked === undefined && optionBox.value !== 'any') {
+                                        options[optionBox.value] = true;
+                                    }
+                                }
+                            }
+                            else{ //constraint only has one possible option:
+                                if(constraintOptionSet.checked){
+                                    options[constraintOptionSet.value] = true;
+                                }
+                            }
+                            var strOptions = JSON.stringify(options);
+                            constraintSet.push(constraint+'-'+category+'-'+strOptions);
+                        }
+                        else {
+                            constraintSet.push(constraint+'-'+category);
+                        }
+                    }
+                }
+            }
+            else
+                constraintSet.push(constraint);
+        }
+    }
+    return constraintSet;
+}
+
+// Helper for sendToTableau: gets the syntactic trees
+function getInputsForTableau(){
+    myGenInputs.pString = spotForm.inputToGen.value;
+    var treeCode = spotForm.sTree.value; // Get the code that is in the manually generated stree textarea
+    // if code has been generated, then ignore pString in GEN
+    if(treeCode !== "{}") {
+        myGenInputs.pString = "";
+    }
+    var sTrees;
+    var treeSelectMenu = document.getElementById('treeEditOption'); // options selecting input from manual, automatic tab or both tabs
+    var treeSelectOptions = treeSelectMenu.value; // getting the value of the option the user has selected
+    var manInputsPres = (spotForm.inputToGen.value != "" || (treeCode != "{}" && treeCode != "[]")); //manual tab input present boolean
+    var autoInputsPres = getAutoSTreeList(); //automatic tab input present boolean
+
+   // determine if both generate tree and build syntax has input
+    if (manInputsPres && autoInputsPres && document.getElementById('treeOption').style.display != "block" && treeSelectOptions == "default-tree"){
+        document.getElementById('treeOption').style.display = "block";
+        displayWarning('Inputs were provided on both the Manual tab and the Automatic tab of Gen: Inputs. Please select an option from the dropdown menu displayed above "Get results" button to choose which set of trees to use in the tableaux.');
+        return;
+    }
+    
+    //if the dropdown menu is shown and option is default-tree
+    if (treeSelectOptions == "default-tree" && document.getElementById('treeOption').style.display == "block"){
+        return;
+    }else if(treeSelectOptions == "auto-tree" || (!manInputsPres && autoInputsPres)){ //If auto-tree is chosen, display this
+        myGenInputs.pString = "";
+        if (autoInputsPres){
+            //Try to actually get the auto-generated sTrees.
+            try{
+                sTrees = getAutoSTreeList();
+            }
+            catch(e){
+                displayError(e.message, e);
+                return;
+            }
+        }else{
+            return;
+        }
+    }else if(treeSelectOptions == "manual-tree" || (manInputsPres && !autoInputsPres)){   //Otherwise, if manual-tree is chosen, display this  
+        // Get the input syntactic trees from manual tree builder
+        if (manInputsPres){
+            try{
+                sTrees = getSTrees();
+            }
+            catch(e){
+                displayError(e.message, e);
+                return;
+            }
+        }else{
+            return;
+        }
+    }else if(treeSelectOptions == "both-tree"){ // if both trees are selected
+        if (autoInputsPres && manInputsPres){
+            try{
+                if (getAutoSTreeList() && getSTrees()){
+                    sTrees = getSTrees();
+                    myGenInputs.pString = "";
+                    sTrees = sTrees.concat(getAutoSTreeList());
+                }else if(getAutoSTreeList()){
+                    myGenInputs.pString = "";
+                    sTrees = getAutoSTreeList();
+                }else{
+                    sTrees = getSTrees();
+                }
+            }
+            catch(e){
+                displayError(e.message, e);
+                return;
+            }
+        }else{
+            return;
+        }
+    }else if(treeSelectOptions == "clear-tree"){
+        treeSelectMenu = treeSelectMenu.selectedIndex = 0;
+        document.getElementById('treeOption').style.display = "none";
+        clearAll();
+        sTreeList = undefined;
+        return;
+    }
+
+    return sTrees;
+}
+
+function getOutputGenOptions() {
+    var genOptions = {};
+
+    //hard-code in the default prosodic hierarchy and category pairings
+    genOptions.ph = PH_PHI;
+
+    for(var i=0; i<spotForm.genOptions.length; i++){
+        var optionBox = spotForm.genOptions[i];
+        genOptions[optionBox.value]=optionBox.checked;
+    }
+
+    //record exhaustivity options if selected
+    if(genOptions['obeysExhaustivity']){
+        var exCats = [];
+        for(var i=0; i<spotForm.exhaustivityCats.length; i++){
+            var exCatBox = spotForm.exhaustivityCats[i];
+            if(exCatBox.checked)
+                exCats = exCats.concat(exCatBox.value);
+        }
+        genOptions['obeysExhaustivity'] = exCats;
+    }
+
+    // if max branching option is selected
+    if(genOptions['maxBranching']){
+        genOptions['maxBranching'] = spotForm.maxBranchingValue.value;
+    }
+
+    //plug correct value into category options
+    genOptions.rootCategory = spotForm['genOptions-rootCategory'].value;
+    genOptions.recursiveCategory = spotForm['genOptions-recursiveCategory'].value;
+    genOptions.terminalCategory = spotForm['genOptions-terminalCategory'].value;
+
+    //warn user if they do something weird with the category options
+    var rootCategoryError = new Error("The specified root category is lower on the prosodic hierarchy\nthan the specified recursive category.");
+    var terminalCategoryError = new Error("The specified recursive category is not higher on the prosodic hierarchy\nthan the specified terminal category.");
+    if(pCat.isHigher(genOptions.recursiveCategory, genOptions.rootCategory)){
+        if(!confirm(rootCategoryError.message + " Are you sure you want to continue?\nIf you are confused, change Root Category and Recursive Category\nin \"Options for prosodic tree generation (GEN function)\"")){
+            throw rootCategoryError;
+        }
+    }
+    if(!pCat.isHigher(genOptions.recursiveCategory, genOptions.terminalCategory)){
+        if(!confirm(terminalCategoryError.message + " Are you sure you want to continue?\nIf you are confused, change Terminal Category and Recursive Category\nin \"Options for prosodic tree generation (GEN function)\"")){
+            throw terminalCategoryError;
+        }
+    }
+
+    return genOptions;
+}
+
+function getTableauOptions(genOptions){
+    var tableauOptions = {
+        showTones: false,  //true iff tones are selected
+        trimStree: false,
+        invisibleCategories: []
+    };
+
+    if(document.getElementById("annotatedWithTones").checked){
+        //from radio group near the bottom of spotForm
+        genOptions.addTones = spotForm.toneOptions.value;
+         tableauOptions.showTones = spotForm.toneOptions.value;
+        //console.log(genOptions);
+    }
+    if(document.getElementById("trimTrees").checked){
+        tableauOptions.trimStree = true;
+    }
+    if(document.getElementById("showHeads").checked){
+        tableauOptions.showHeads = window.spotForm['genOptions-showHeads'].value;
+    }
+
+
+    for(var i = 0; i < window.spotForm.hideCategory.length; i++){
+        var hiddenCat = window.spotForm.hideCategory[i];
+        if(hiddenCat.checked){
+            tableauOptions.invisibleCategories.push(hiddenCat.value);
+        }
+    }
+
+    return tableauOptions;
+}
+
+function checkForLongInputs(genOptions){
+    var safe_input_length = true;
+    var safe_input_length_clitic = true;
+    var sTree;
+    var maxNumTerminals;
+    var j = 0;
+    while(safe_input_length && safe_input_length_clitic && j < myGenInputs.sTrees.length){
+    //check for inputs that are too long and set safe_input_length = false as needed
+        sTree = myGenInputs.sTrees[j];
+        maxNumTerminals = Math.max(getLeaves(sTree).length, myGenInputs.pString.split(" ").length);
+        //warn user about possibly excessive numbers of candidates
+        if (genOptions['cliticMovement'])
+        {
+            if((maxNumTerminals >= 7) || (!genOptions['noUnary'] && maxNumTerminals >= 5))
+            {
+                safe_input_length_clitic = false;
+            }
+        }else if(maxNumTerminals >= 9 || (maxNumTerminals >= 6 && !genOptions['noUnary'])){
+            safe_input_length = false;
+        }
+        j++;
+    }
+    if(!safe_input_length){
+    //display warning and get confirmation
+        if(!confirm("You have one or more input with more than five terminals, which may run slowly and even freeze your browser, depending on the selected GEN options. Do you wish to continue?")){
+            throw new Error("Tried to run GEN with too many terminals");
+        }
+    }else if (!safe_input_length_clitic){
+        var tooManyCandMsg = "You have selected GEN settings that allow movement, and included a sentence of "+ maxNumTerminals.toString()+" terminals. This GEN may yield more than 10K candidates. To reduce the number of candidates, consider enforcing non-recursivity, exhaustivity, and/or branchingness for intermediate prosodic nodes. Do you wish to proceed with these settings?";
+        var continueGEN = confirm(tooManyCandMsg);
+        if(!continueGEN){
+            throw new Error("Tried to run GEN with clitic movement with too many terminals");
+        }
+    }
+}
+
+/**
+ * This function runs when the "Get results" button is clicked.
+ * 
+ * Components:
+ * - Build list of checked constraints and their options and arguments
+ * - Get selected output GEN options
+ * - Get inputs (manual or from input GEN)
+ * - Send everything to makeTableau(), writeTableau(), and saveTextAs() 
+ */
+function sendToTableau(e) {
+    if (e.preventDefault) e.preventDefault();
+    var constraintSet = getCheckedConstraints();
+    myGenInputs.sTrees = getInputsForTableau();
+    if (myGenInputs.sTrees == undefined){
+        return false;
+    }
+    var genOptions = getOutputGenOptions();
+    checkForLongInputs(genOptions);
+
+    var tableauOptions = getTableauOptions(genOptions);
+
+    //If the tree is rooted in a word, the recursive category is the foot, and the terminal category is the syllable, then
+    //the function makeTableau() will be called with the option "subword" which will change bracketing notation for parenthesizeTree().
+    if (genOptions.rootCategory === "w" && genOptions.recursiveCategory === "Ft" && genOptions.terminalCategory === "syll") {
+        tableauOptions.subword = true;
+    }
+
+    var resultsConCl = document.getElementById("results-container").classList;
+    resultsConCl.add('show-tableau');
+
+    var csvSegs = [];
+    for (var i = 0; i < myGenInputs.sTrees.length; i++) {
+        var sTree = myGenInputs.sTrees[i];
+
+        //Actually create the candidate set
+        if (genOptions['cliticMovement']){
+        //	var candidateSet = GENwithCliticMovement(sTree, pString, genOptions);
+            var candidateSet = globalNameOrDirect(spotForm['genOptions-movement'].value)(sTree, myGenInputs.pString, genOptions);
+        }
+        else{
+            var candidateSet = GEN(sTree, myGenInputs.pString, genOptions);
+        }
+
+        //Make the violation tableau with the info we just got.
+        var tabl = makeTableau(candidateSet, constraintSet, tableauOptions);
+        csvSegs.push(tableauToCsv(tabl, ',', {noHeader: i}));
+        writeTableau(tabl);
+        revealNextSegment();
+    }
+
+    saveTextAs(csvSegs.join('\n'), 'SPOT_Results.csv');
+
+    function saveTextAs(text, name) {
+        saveAs(new Blob([text], {type: "text/csv", encoding: 'utf-8'}), name);
+    }
+
+    return false;
+};var uTreeCounter = 0;
+var treeUIsTreeMap = {};
+
+function UTree(root) {
+
+	var self = this;
+	this.root = root;
+	this.treeIndex = uTreeCounter++;
+	treeUIsTreeMap[this.treeIndex] = this;
+
+	this.nodeNum = 0;
+	this.nodeMap = {};
+	this.addMeta = function(node, parent) {
+		node.m = {nodeId: this.nodeNum++, parent: parent, treeIndex: this.treeIndex};
+		this.nodeMap[node.m.nodeId] = node;
+		if (node.children) {
+			for (var i = 0; i < node.children.length; i++) {
+				this.addMeta(node.children[i], node);
+			}
+		}
+	};
+	this.addMeta(this.root);
+	this.root.m.isRoot = true;
+
+	function assignDims(node) {
+		var height = 0, width = 0;
+		if (node.children && node.children.length) {
+			for (var i = 0; i < node.children.length; i++) {
+				var childResult = assignDims(node.children[i]);
+				width += childResult.width; // width in number of cells
+				height = Math.max(childResult.height, height); //height counts how many levels up from the terminals this node is
+			}
+			height += 1; // for this node
+		} else {
+			width = 1;
+		}
+		node.m.height = height;
+		node.m.width = width;
+		return node.m;
+	}
+
+	this.toTable = function() {
+		assignDims(this.root);
+		var table = [];
+		for (var i = 0; i <= this.root.m.height; i++) {
+			table.push([]);
+		}
+		function processNode(node, parentHeight) {
+			var height = node.m.height;
+			table[height].push({node: node, width: node.m.width, hasStem: parentHeight > height, stemOnly: false});
+			for (var h = height+1; h < parentHeight; h++) {
+				table[h].push({width: node.m.width, stemOnly: true});
+			}
+			if (node.children && node.children.length) {
+				for (var i = 0; i < node.children.length; i++) {
+					processNode(node.children[i], height);
+				}
+			}
+		}
+		processNode(this.root, this.root.height);
+		return table;
+	};
+
+	function makeElementId(elType, node) {
+		return [elType, node.m.nodeId, self.treeIndex].join('-');
+	}
+
+	function toInnerHtmlFrags(frags) {
+		if (!frags) frags = [];
+		var table = self.toTable();
+		for (var h = table.length-1; h >= 0; h--) {
+			var rowFrags = [];
+			var row = table[h];
+			for (var i = 0; i < row.length; i++) {
+				var block = row[i], node = block.node;
+				var pxWidth = block.width*80; // should be an even number of pixels
+				var stemLeftWidth = pxWidth/2 - 2, stemRightWidth = pxWidth/2;
+				var stem = '<div class="inline-block stemSide" style="width: ' + stemLeftWidth + 'px; border-right: 2px black solid"></div><div class="inline-block stemSide" style="width: ' + stemRightWidth + 'px"></div>';
+				if (block.stemOnly) {
+					rowFrags.push(stem);
+				} else {
+					var stemContainer = '';
+					if (block.hasStem) {
+						stemContainer = '<div class="stemContainer">' + stem + '</div>';
+					}
+					var nodeClasses = 'treeNode';
+					if (node.m.isRoot) {
+						nodeClasses += ' rootNode';
+					}
+					var catInputId = makeElementId('catInput', node), idInputId = makeElementId('idInput', node);
+					var inputSuffixId = "";
+			 		if (node.silentHead == true){ //silentHead = true
+						inputSuffixId += ", silentHead";
+					}
+					if (node.func == true){ //func = true
+						inputSuffixId += ", func";
+					}
+					if (node.foc == true){ //foc = true
+						inputSuffixId += ", foc";
+					}
+					rowFrags.push('<div id="treeNode-' + node.m.nodeId + '-' + node.m.treeIndex + '" class="' + nodeClasses + '" style="width: ' + pxWidth + 'px">' + stemContainer + '<div class="inputContainer"><input id="' + catInputId + '" class="catInput" type="text" value="' + node.cat + inputSuffixId + '"></input></div><div class="inputContainer"><input id="' + idInputId + '" class="idInput" type="text" value="' + node.id + '"></input></div></div>');
+				}
+			}
+			frags.push('<div>');
+			frags.push(rowFrags.join(''));
+			frags.push('</div>');
+		}
+		return frags;
+	};
+
+	this.toInnerHtml = function() {
+		return toInnerHtmlFrags().join('');
+	}
+
+	this.toHtml = function() {
+		var frags = ['<div class="treeUI-tree" id="treeUI-' + self.treeIndex + '">'];
+		toInnerHtmlFrags(frags);
+		frags.push('</div>');
+		return frags.join('');
+	}
+
+	this.refreshHtml = function() {
+		document.getElementById('treeUI-'+self.treeIndex).innerHTML = self.toInnerHtml();
+	}
+
+	this.toJSON = function() {
+		return JSON.stringify(this.root, function(k, v) {
+			if (k !== 'm') return v;
+		}, 4);
+	};
+
+	this.addParent = function(nodes) {
+		var indices = [], parent = nodes[0].m.parent;
+		if (!parent) {
+			throw new Error('Cannot add a mother to the root node');
+		}
+		for (var i = 0; i < nodes.length; i++) {
+			var node = nodes[i];
+			if (node.m.parent !== parent) throw new Error('Nodes must have same the mother.');
+			if (parent) {
+				indices.push(parent.children.indexOf(node));
+			}
+		}
+		indices.sort();
+		if (indices && indices[0] < 0) throw new Error('Mother node not found.');
+		for (var i = 1; i < indices.length; i++) {
+			if (indices[i] !== indices[i-1]+1) throw new Error('Nodes must be adjacent sisters.');
+		}
+
+		// create new node, connect it to parent
+		var newNode = {cat: 'xp'};
+		this.addMeta(newNode, parent);
+		newNode.id = 'XP_' + newNode.m.nodeId; // this does not guarantee uniqueness, but probably close enough for now
+
+		// connect new node to children
+		var firstChildIndex = indices[0], lastChildIndex = indices[indices.length-1];
+		newNode.children = parent.children.slice(firstChildIndex, lastChildIndex+1);
+
+		// connect children to new node
+		for (var i = 0; i < newNode.children.length; i++) {
+			newNode.children[i].m.parent = newNode;
+		}
+
+		// connect parent to new node
+		parent.children = parent.children.slice(0, firstChildIndex).concat([newNode], parent.children.slice(lastChildIndex+1));
+	};
+
+	this.deleteNode = function(node) {
+		// connect children to parent
+		var parent = node.m.parent, children = node.children || [];
+		for (var i = 0; i < children.length; i++) {
+			children[i].m.parent = parent;
+		}
+
+		// connect parent to children
+		if (node.m.parent) {
+			var index = node.m.parent.children.indexOf(node);
+			node.m.parent.children = node.m.parent.children.slice(0, index).concat(children, node.m.parent.children.slice(index+1));
+
+			// remove from node map
+			delete this.nodeMap[node.m.nodeId];
+		} else { // delete UTree and associated element if root
+			delete treeUIsTreeMap[node.m.treeIndex];
+			var elem = document.getElementById('treeUI-' + this.treeIndex);
+			elem.parentNode.removeChild(elem);
+		}
+	};
+}
+
+// For testing only
+/*
+new UTree({
+	id: "CP1",
+	cat: "cp",
+	children: [
+		{id: "a", cat: "x0"},
+		{id: "n", cat: "n", children: [
+			{id: "b", cat: "x0"},
+			{id: "c", cat: "x0"},
+		]},
+		{id: "d", cat: "x0"}
+	]
+});
+refreshHtmlTree();
+document.getElementById('treeUIinner').style.display = 'block';
+*/
+
+function parseCats(node){
+	var cats = node['cat'].split(',');
+	if (cats.length > 1){
+		node['cat'] = cats[0];
+	}
+	// add the rest of the list as attributes
+	for (var cat of cats.slice(1)){
+		// remove non-alphanumeric characters, underscores
+		// replace capital letters with lowercase
+		att = cat.trim().replace(/\W/g, '');
+		if (att === ""){
+			continue;
+		}
+		//console.log(att)
+		node[att] = true;
+		/*
+		if (cat.indexOf('silentHead') != -1){
+			node['silentHead'] = true;
+		}
+		if (cat.indexOf('func') != -1){
+			node['func'] = true;
+		}
+		if (cat.indexOf('foc') != -1){
+			node['foc'] = true;
+		}*/
+
+	}
+	var children = node['children'];
+	if (children != undefined){
+		for (var child of children){
+			parseCats(child);
+		}
+	}
+}
+
+function htmlToJSONTree(){
+	sTree = JSON.stringify(Object.values(treeUIsTreeMap).map(function(tree) {
+
+		// console.log(JSON.parse(tree.toJSON()));
+		// console.log(JSON.parse(tree.toJSON())['cat']);
+		var checkTree = JSON.parse(tree.toJSON());
+		parseCats(checkTree);
+		return (checkTree); // bit of a hack to get around replacer not being called recursively
+	}), null, 4);
+
+	if(sTree.includes('-')) {
+		displayError('Your trees were not added to the analysis because there are hyphens in category or id names in the tree builder. Please refer to the instructions in the tree builder info section.');
+		var info = document.getElementById('treeBuilderInfo');
+		info.classList.add('showing');
+	}
+	else {
+		spotForm.sTree.value = sTree
+		document.getElementById('doneMessage').style.display = 'inline-block';
+	}
+
+	spotForm.inputToGen.value = "";
+}
+
+UTree.fromTerminals = function(terminalList) {
+	var dedupedTerminals = deduplicateTerminals(terminalList);
+	var cliticRegex = /-clitic/; //for testing if terminal should be a clitic
+
+	//Make the js tree (a dummy tree only containing the root CP)
+	var root = {
+		"id":"CP1",
+		"cat":"cp",
+		"children":[]
+	};
+	//Add the provided terminals
+	for(var i=0; i<dedupedTerminals.length; i++){
+		//if terminal should be a clitic
+		if(cliticRegex.test(dedupedTerminals[i])){
+			//push a clitic to root.children
+			root.children.push({
+				"id":dedupedTerminals[i].replace('-clitic', ''),
+				"cat":"clitic"
+			});
+		}
+		//non-clitic terminals
+		else {
+			root.children.push({
+				"id":dedupedTerminals[i],
+				"cat":"x0"
+			});
+		}
+	}
+	return new UTree(root);
+};
+
+function showUTree(tree){
+	treeTableContainer.innerHTML += tree.toHtml();
+	refreshNodeEditingButtons();
+
+	document.getElementById('treeUIinner').style.display = 'block';
+
+	var treeContainer = document.getElementById("treeTableContainer");
+	treeContainer.scrollTop = treeContainer.scrollHeight;
+
+}
+
+function clearUTrees(){
+	treeTableContainer.innerHTML = '';
+	treeUIsTreeMap = {};
+}
+
+function addOrRemoveUTrees(addTree){
+	if(addTree){
+		treeTableContainer.innerHTML += addTree.toHtml();
+	}
+	else{
+		clearUTrees();
+	}
+	refreshNodeEditingButtons();
+
+	document.getElementById('treeUIinner').style.display = 'block';
+
+	var treeContainer = document.getElementById("treeTableContainer");
+	treeContainer.scrollTop = treeContainer.scrollHeight;
+}
+
+function elementToNode(el) {
+	var idFrags = el.id.split('-');
+	if (idFrags[0] !== 'treeNode') return null;
+	var nodeId = idFrags[1];
+	return treeUIsTreeMap[idFrags[2]].nodeMap[nodeId];
+}
+
+function getSelectedNodes() {
+	var elements = treeTableContainer.getElementsByClassName('selected');
+	var nodes = [];
+	for (var i = 0; i < elements.length; i++) {
+		var node = elementToNode(elements[i]);
+		if (node) {
+			nodes.push(node);
+		}
+	}
+	return nodes;
+}
+
+function treeUIMakeParent() {
+	var nodes = getSelectedNodes();
+	try {
+		treeUIsTreeMap[nodes[0].m.treeIndex].addParent(nodes);
+		refreshHtmlTree();
+	} catch (err) {
+		displayError('Unable to add daughter: ' + err.message, err);
+	}
+	document.getElementById('doneMessage').style.display = 'none';
+}
+
+function deleteTreeUINodes() {
+	var nodes = getSelectedNodes();
+	if (nodes) {
+		var treeIndex = nodes[0].m.treeIndex;
+		for (var i = 1; i < nodes.length; i++) {;
+			if(nodes[i].m.treeIndex != treeIndex) {
+				displayError('You attempted to delete nodes from multiple trees. Please delete nodes one tree at a time.');
+				return;
+			}
+		}
+	}
+	var tree = treeUIsTreeMap[treeIndex];
+	for (var i = 0; i < nodes.length; i++) {
+		tree.deleteNode(nodes[i]);
+	}
+	refreshHtmlTree(treeIndex);
+	document.getElementById('doneMessage').style.display = 'none';
+}
+
+function treeUIClearSelection() {
+	var elements = treeTableContainer.getElementsByClassName('selected');
+	for (var i = elements.length-1; i >= 0; i--) {
+		elements[i].classList.remove('selected');
+	}
+	refreshNodeEditingButtons();
+}
+
+function refreshNodeEditingButtons() {
+	var treeTableContainer = document.getElementById('treeTableContainer');
+	var hasSelection = treeTableContainer.getElementsByClassName('selected').length > 0;
+	var buttons = document.getElementsByClassName('nodeEditingButton');
+	for (var i = 0; i < buttons.length; i++) {
+		buttons[i].disabled = !hasSelection;
+	}
+}
+
+function refreshHtmlTree(treeIndex) {
+	if (treeIndex === undefined) {
+		for (index of Object.keys(treeUIsTreeMap)) {
+			refreshHtmlTree(index);
+		}
+		return;
+	}
+
+	if (treeIndex in treeUIsTreeMap) {
+		treeUIsTreeMap[treeIndex].refreshHtml();
+	}
+	refreshNodeEditingButtons();
+}
+
+function setUpTreeBuilderTable(){
+	// Get the string of terminals
+	var terminalString = spotForm.inputToGen.value;
+	var terminalList = terminalString.trim().split(/\s+/);
+
+	//Make the js tree (a dummy tree only containing the root CP)
+	var tree = UTree.fromTerminals(terminalList);
+	showUTree(tree);
+	document.getElementById('doneMessage').style.display = 'none';
+}
+
+//Shows or hides the tree code area when the toggle is switched
+function showHideTreeCode(){
+	if (document.getElementById('tree-code-area').style.display === 'none' && document.getElementById('tree-code-box').checked){
+		document.getElementById('tree-code-area').style.display = 'block';
+		document.getElementById('sliderText').innerHTML = 'Hide code';
+	}
+	else{
+		document.getElementById('tree-code-area').style.display = 'none';
+		document.getElementById('sliderText').innerHTML = 'Show code';
+	}
+}
+
+//Get syntactic trees from manual tree builder's code area
+function getSTrees() {
+	var spotForm = document.getElementById('spotForm');
+	var sTrees;
+	sTrees = JSON.parse(spotForm.sTree.value);
+	if (!(sTrees instanceof Array)) {
+		sTrees = [sTrees];
+	}
+	return sTrees;
+}
+
+
+/** 
+ * Functions for generating all maximally binary-branching trees with two or three terminals
+ * as used in Bellik & Kalivoda 2018 on Danish compound words
+ * LEGACY CODE
+ */
+function danishTrees() {
+	var patterns = [
+		[[{}],[{}]],
+		[[{}],[{},{}]],
+		[[{},{}],[{}]],
+		[[{},{}],[{},{}]],
+		[[{}],[[{}],[{}]]],
+		[[{}],[[{}],[{},{}]]],
+		[[{}],[[{},{}],[{}]]],
+		[[{},{}],[[{}],[{}]]],
+		[[{}],[[{},{}],[{},{}]]],
+		[[{},{}],[[{}],[{},{}]]],
+		[[{},{}],[[{},{}],[{}]]],
+		[[{},{}],[[{},{}],[{},{}]]],
+		[[[{}],[{}]],[{}]],
+		[[[{}],[{}]],[{},{}]],
+		[[[{}],[{},{}]],[{}]],
+		[[[{},{}],[{}]],[{}]],
+		[[[{}],[{},{}]],[{},{}]],
+		[[[{},{}],[{}]],[{},{}]],
+		[[[{},{}],[{},{}]],[{}]],
+		[[[{},{}],[{},{}]],[{},{}]]
+	];
+
+	function patternToJS(pattern) {
+		var xpid = 1, x0id = 1;
+		function patternPartToJS(pattern) {
+			var node = {};
+			if (pattern instanceof Array) {
+				node.id = "XP" + xpid++;
+				node.cat = "xp";
+				node.children = [];
+				for (var i = 0; i < pattern.length; i++) {
+					node.children.push(patternPartToJS(pattern[i]));
+				}
+			} else {
+				node.id = "f_" + x0id++;
+				node.cat = "x0";
+			}
+			return node;
+		}
+		return patternPartToJS(pattern);
+	}
+
+	var sTrees = [];
+
+	for (var i = 0; i < patterns.length; i++) {
+		sTrees.push(patternToJS(patterns[i]));
+	}
+
+	return sTrees;
+}if (!Element.prototype.matches)
+		Element.prototype.matches = Element.prototype.msMatchesSelector || 
+																Element.prototype.webkitMatchesSelector;
+
+if (!Element.prototype.closest)
+		Element.prototype.closest = function(s) {
+				var el = this;
+				if (!document.documentElement.contains(el)) return null;
+				do {
+						if (el.matches(s)) return el;
+						el = el.parentElement;
+				} while (el !== null); 
+				return null;
+		};
+var lastSegmentId = 0, nextSegmentToReveal = 0;
+//logreport functions have been moved to main/logreport.js
+var resultsContainer;
+
+function writeTableau(tableauContent) {
+    if (resultsContainer) {
+        var tableauContainer = document.createElement('div');
+
+        tableauContainer.innerHTML =  '<h2 style="margin-bottom: 5px">Tableau</h2>';	
+
+        var textareaNote = document.createElement('strong');
+        textareaNote.innerHTML = 'For copying and pasting into OTWorkplace: ';
+        tableauContainer.appendChild(textareaNote);
+
+        var textarea = document.createElement('textarea');
+        textarea.className = 'tableau-textarea';
+        textarea.value = tableauToCsv(tableauContent, '\t');
+        textarea.readOnly = true;
+        tableauContainer.appendChild(textarea);
+		tableauContainer.appendChild(document.createElement('p'));
+        tableauContainer.className += ' segment-' + lastSegmentId;
+        if (lastSegmentId >= nextSegmentToReveal)
+            tableauContainer.className += ' segment-hidden';
+        onRevealSegment[lastSegmentId] = function() {
+            textarea.focus();
+            textarea.select();
+        }
+
+        var htmlTableauContainer = document.createElement('div');
+        htmlTableauContainer.innerHTML = tableauToHtml(tableauContent);
+        tableauContainer.appendChild(htmlTableauContainer);	
+
+        resultsContainer.appendChild(tableauContainer);
+
+    } else {
+        console.error('Tried to write tableau before window loaded.');
+    }
+}
+
+window.addEventListener('load', function(){
+    resultsContainer = document.getElementById('results-container');
+    if(typeof runDemo === 'function')
+        runDemo();
+});
+
+
+var onRevealSegment = {};
+
+function revealNextSegment() {
+    if (nextSegmentToReveal > lastSegmentId)
+        return;
+    var elements = document.getElementsByClassName('segment-' + nextSegmentToReveal);
+    for (var i = 0; i < elements.length; i++)
+        elements[i].className = elements[i].className.replace('segment-hidden', '');
+
+    if (onRevealSegment[nextSegmentToReveal])
+        onRevealSegment[nextSegmentToReveal]();
+
+    // window.scrollTo(0, document.body.scrollHeight); //TODO: scroll to top of last segment, not bottom
+
+    nextSegmentToReveal++;
+}
+
+document.addEventListener('keyup', function(event) {
+    if (event.keyCode === 32)
+        revealNextSegment();
+});
+
+
+//Given a string that is the name of a (global) object, returns the object itself.
+//Given an object, returns that object.
+function globalNameOrDirect(nameOrObject) {
+    if (!window.disableGlobalNameOrDirect && typeof nameOrObject === 'string') {
+		if (!window.hasOwnProperty(nameOrObject)) {
+			console.error('globalNameOrDirect error: ' + nameOrObject + ' is not defined in the global namespace')
+		}
+    	return window[nameOrObject];
+    } else {
+		return nameOrObject;
+	}
+}
+
+function runConstraint(constraint, sname, pname, cat, expectedViolations) {
+    var pTree = globalNameOrDirect(pname);
+    logreport(['<span class="main-report-line">Running ', constraint, '(', (cat || ''), ') on (', sname, ', ', parenthesizeTree(pTree), ')', (expectedViolations == null) ? '' : [' - Expected Violations: <span class="expected-violation-count">', expectedViolations, '</span>'].join(''), '</span>'].join(''));
+    var violationCount = globalNameOrDirect(constraint)(globalNameOrDirect(sname), pTree, cat);
+    logreport(['<span class="main-report-line" style="background-color: white">Actual Violations: <span class="actual-violation-count">', violationCount, '</span></span><br/><br/>'].join(''));
+    return violationCount;
+}
+if(typeof window === "undefined"){
+  window = {};
+}
+
 (function() {
 
   window.GEN_impl = function(sTree, leaves, options) {
@@ -4975,169 +7370,6 @@ function loadAnalysis(file){
   }
 
 })();
-
-function containsClitic(x) {
-  return x.indexOf("clitic") > -1;
-}
-
-
-function generateWordOrders(wordList, clitic) {
-  if (typeof wordList === 'string') {
-    var cliticTagIndex = wordList.indexOf("-clitic");
-    if (cliticTagIndex > 0) {
-      var wordListParts = wordList.split("-clitic");
-      wordList = wordListParts[0] + wordListParts[1];
-    }
-    wordList = wordList.split(' ');
-  }
-  //Find the clitic to move around
-  var cliticIndex = wordList.indexOf(clitic);
-  try {
-    if (cliticIndex < 0)
-      throw new Error("The provided clitic " + clitic + " was not found in the word list");
-  }
-  catch(err) {
-    displayError(err.message, err);
-  }
-  //Slice the clitic out
-  var beforeClitic = wordList.slice(0, cliticIndex);
-  var afterClitic = wordList.slice(cliticIndex + 1, wordList.length);
-  var cliticlessWords = beforeClitic.concat(afterClitic);
-
-  var orders = new Array(wordList.length);
-  for (var i = 0; i <= cliticlessWords.length; i++) {
-    beforeClitic = cliticlessWords.slice(0, i);
-    afterClitic = cliticlessWords.slice(i, cliticlessWords.length);
-    orders[i] = beforeClitic.concat([clitic + "-clitic"], afterClitic);
-  }
-  return orders;
-}
-
-/* Arguments:
-	stree: a syntatic tree, with the clitic marked as cat: "clitic"
-	words: optional string or array of strings which are the desired leaves
-	options: options for GEN
-
-   Returns: GEN run on each possible order of the words, where possible orders
-   are those where terminals other than the clitic remian in place but the clitic can occupy any position.
-
-   Caveat: If there are multiple clitics, only the first will be moved.
-*/
-
-function GENwithCliticMovement(stree, words, options) {
-  // Identify the clitic of interest
-  var clitic = '';
-  // First try to read words and clitic off the tree
-  var leaves = getLeaves(stree);
-  if (leaves.length > 0 && leaves[0].id) {
-    //console.log(leaves);
-    var leaf = 0;
-    while (clitic === '' && leaf < leaves.length) {
-      if (leaves[leaf].cat === "clitic")
-        clitic = leaves[leaf].id;
-      leaf++;
-    }
-    if (clitic === '') {
-      displayWarning("You selected GEN settings that move clitics, but one or more input trees do not have a clitic lableled.");
-      console.log(stree);
-      return GEN(stree, words, options);
-      //throw new Error("GENWithCliticMovement was called but no node in stree has category clitic was provided in stree");
-
-    }
-  }
-  //Otherwise, get the clitic from words
-  else {
-    // Make sure words is an array
-    if (typeof words === "string") {
-      words = words.split(' ');
-    }
-    var x = words.find(containsClitic);
-    if (!x) { //x is undefined if no word in "words" contains "clitic"
-      displayWarning("You selected GEN settings that move clitics, but one or more input trees do not have a clitic lableled.");
-      console.log(stree);
-      return GEN(stree, words, options);
-    }
-    clitic = x.split('-clitic')[0];
-    words[words.indexOf(x)] = clitic;
-  }
-
-  //Make sure words is defined before using it to generate word orders
-  if (!words || words.length < leaves.length) {
-    words = new Array(leaves.length);
-    for (var i in leaves) {
-      words[i] = leaves[i].id;
-    }
-
-  }
-  var wordOrders = generateWordOrders(words, clitic);
-  var candidateSets = new Array(wordOrders.length);
-  for (var i = 0; i < wordOrders.length; i++) {
-    candidateSets[i] = GEN(stree, wordOrders[i], options);
-  }
-  //candidateSets;
-  return [].concat.apply([], candidateSets);
-}
-
-function GENwithPermutation(stree, words, options){
-
-	var leaves = getLeaves(stree);
-	var permutations = [];
-
-	//function for swapping elements in an array, takes array and indexes of elements to be swapped
-	function swap(array, index1, index2){
-		var swapped = [];
-		for(var i = 0; i<array.length; i++){
-			if(i === index1){
-				swapped.push(array[index2]);
-			}
-			else if(i === index2){
-				swapped.push(array[index1]);
-			}
-			else{
-				swapped.push(array[i]);
-			}
-		}
-		return swapped;
-	}
-
-	//actual implementation of Heap's algorithm
-
-	function allOrdersInner(innerList, k){
-		if(k == 1){
-			permutations.push(innerList);
-		}
-		else{
-			allOrdersInner(innerList, k-1); //recursive function call
-
-			for(var i = 0; i < k-1; i++){
-				if(k%2 === 0){
-					//swap innerList[i] with innerList[k-1]
-					allOrdersInner(swap(innerList, 0, k-1), k-1); //recursive function call
-				}
-				else {
-					//swap innerList[0] with innerList[k-1]
-					allOrdersInner(swap(innerList, i, k-1), k-1); //recursive function call
-				}
-			}
-		}
-	}
-
-	//Make sure words is defined before using it to generate word orders
-	if(!words || words.length<leaves.length){
-		words = new Array(leaves.length);
-		for(var i in leaves){
-			words[i] = leaves[i].id;
-		}
-		//console.log(words);
-	}
-	allOrdersInner(words, words.length);
-	var candidateSets = [];
-	for(var i = 0; i<permutations.length; i++){
-		candidateSets[i] = GEN(stree, permutations[i], options);
-	}
-	//candidateSets;
-	return [].concat.apply([], candidateSets);
-}
 /* Takes a list of words and returns the candidate set of trees (JS objects)
    Options is an object consisting of the parameters of GEN. Its properties can be:
    - obeysExhaustivity (boolean or array of categories at which to require conformity to exhaustivity)
@@ -5150,7 +7382,8 @@ function GENwithPermutation(stree, words, options){
 	 		- "addJapaneseTones"
 			- "addIrishTones_Elfner"
 			- "addIrishTones_Kalivoda"
-	- noUnary (boolean): if true, don't create any nodes that immediately dominate only a single terminal.
+	- noUnary (boolean): if true, don't create any nodes that immediately dominate only a single node.
+	- maxBranching (numeric): maximum number of children that any node in the tree can have
 	- requireRecWrapper (boolean). Formerly "requirePhiStem"
 	- syntactic (boolean): are we generating syntactic trees?
    - ph (prosodic heirarchy object):
@@ -5160,28 +7393,34 @@ function GENwithPermutation(stree, words, options){
 window.GEN = function(sTree, words, options){
 	options = options || {}; // if options is undefined, set it to an empty object (so you can query its properties without crashing things)
 
-	// Create the ph object if none was passed or what was passed was incomplete, and set it the default PH object, defined in prosodicHierarchy.js
-	if (!(options.ph && options.ph.pCat && options.ph.categoryPairings)){
-		options.ph = PH_PHI;
-		console.log("The prosodic hierarchy input to GEN was missing or incomplete, so ph has been set by default to PH_PHI, defined in prosodicHierarchy.js");
+	//Set prosodic hierarchy if we're making prosodic trees. Don't bother with this for syntactic trees.
+	if(!options.syntactic){
+		// Create the ph object if none was passed or what was passed was incomplete, and set it the default PH object, defined in prosodicHierarchy.js
+		if (!(options.ph && options.ph.pCat && options.ph.categoryPairings)){
+			options.ph = PH_PHI;
+			//console.log("The prosodic hierarchy input to GEN was missing or incomplete, so ph has been set by default to PH_PHI, defined in prosodicHierarchy.js");
+		}
+		
+		setPCat(options.ph.pCat);
+		setCategoryPairings(options.ph.categoryPairings);
+		// give a warning if there are categories from categoryPairings not present in pCat
+		if (!checkProsodicHierarchy(options.ph.pCat, options.ph.categoryPairings)){
+			displayWarning("One or more categories in the provided map of syntactic-prosodic correspondences (categoryPairings) do not exist in the provided prosodic hierarchy (pCat). Resetting pCat and categoryPairings to their default values, defined in PH_PHI.");
+			//set pCat and categoryPairings to their default values
+			resetPCat();
+			resetCategoryPairings();
+			options.ph = PH_PHI;
+		}
 	}
 	
-	setPCat(options.ph.pCat);
-	setCategoryPairings(options.ph.categoryPairings);
-	// give a warning if there are categories from categoryPairings not present in pCat
-	if (!checkProsodicHierarchy(options.ph.pCat, options.ph.categoryPairings)){
-		displayWarning("One or more categories in the provided map of syntactic-prosodic correspondences (categoryPairings) do not exist in the provided prosodic hierarchy (pCat). Resetting pCat and categoryPairings to their default values, defined in PH_PHI.");
-		//set pCat and categoryPairings to their default values
-		resetPCat();
-		resetCategoryPairings();
-		options.ph = PH_PHI;
-	}
 	var categoryHierarchy = options.syntactic ? sCat : pCat;
+	var defaultRecCat = options.syntactic ? "xp" : "phi"; //sets the default of recursiveCategory option to "phi" if prosodic, "xp" if syntactic
+
 	/* First, warn the user if they have specified terminalCategory and/or
 	 * rootCategory without specifying recursiveCategory
 	 */
 	 if(!options.recursiveCategory && (options.rootCategory || options.terminalCategory)){
-		if(!window.confirm("You have not specified the recursive category for GEN, it will default to 'phi'.\nClick OK if you wish to continue."))
+		if(!window.confirm("You have not specified the recursive category for GEN, it will default to "+ defaultRecCat +".\nClick OK if you wish to continue."))
 			throw new Error("GEN was canceled by user.");
 	}
 	/* the prosodic hierarchy should include the categories specified in
@@ -5193,8 +7432,8 @@ window.GEN = function(sTree, words, options){
 	//a flag for whether the user has included a novel category undefined in categoryHierarchy
 	var novelCategories = false;
 	try{
-		//sets the default of recursiveCategory option to "phi"
-		options.recursiveCategory = options.recursiveCategory || "phi";
+		
+		options.recursiveCategory = options.recursiveCategory || defaultRecCat;
 		//sets the default of rootCategory based on recursiveCategory
 		options.rootCategory = options.rootCategory || categoryHierarchy.nextHigher(options.recursiveCategory);
 		//sets the default of terminalCategory based on recursiveCategory
@@ -5250,17 +7489,13 @@ window.GEN = function(sTree, words, options){
 
 	if(typeof words === "string") { // words can be a space-separated string of words or an array of words; if string, split up into an array
 		if (!words) { // if empty, scrape words from sTree
-			words = getLeaves(sTree);
-			for (var i = 0; i < words.length; i++) {
-				var catSuffix = '';
-				if (words[i].cat == 'clitic'){
-					catSuffix = '-clitic';
-				}
-				var accentSuffix = '';
-				if(words[i].accent){
-					accentSuffix = '-accent';
-				}
-				words[i] = words[i].id+catSuffix+accentSuffix;
+			if(sTree.cat && sTree.id){
+				words = getLeaves(sTree);
+			}
+			else{
+				let message = "window.GEN() was called no valid input!";
+				displayError(message);
+				return [];
 			}
 		} else {
 			words = words.split(' ');
@@ -5278,7 +7513,7 @@ window.GEN = function(sTree, words, options){
 		leaves.push(wrapInLeafCat(words[i], options.terminalCategory, options.syntactic));
 	}
 
-	return GEN_impl(sTree, leaves, options);
+	return window.GEN_impl(sTree, leaves, options);
 }
 
 function deduplicateTerminals(terminalList) {
@@ -5302,28 +7537,405 @@ function deduplicateTerminals(terminalList) {
 	return dedupedTerminals;
 }
 
+/** Function to take a string and category and return an object wordObj with attributes
+ *  wordObj.id = word
+ *  wordObj.cat = cat
+ * 
+ * Also convert hyphenated information about accent and status as a clitic that is 
+ * appended to the word argument to attributes of wordObj.
+ * 
+ * If input word is already an object, return it after checking its category.
+ * - if word.cat == cat, return as is
+ * - if word.cat == "clitic" and syntactic==true, create an x0 layer over the clitic
+ * - if word.cat == "clitic" and syntactic==false, change word.cat to "syll"
+ * - if word.cat != cat, and word.cat != clitic, change word.cat to cat.
+ */
 function wrapInLeafCat(word, cat, syntactic){
-	//by default, the leaf category is 'w'
-	var myCat = cat || 'w';
-	var wordId = word;
-
-	//check if the input specifies this is a clitic and set category appropriately
-	var isClitic = word.indexOf('-clitic')>=0;
-	if (isClitic){
-		myCat = syntactic ? 'clitic' : 'syll'; //syntactic tree vs prosodic trees
-		wordId = wordId.split('-clitic')[0];
+	var wordObj;
+	//If word is already an object with appropriate properties, then check categories and return.
+	if(typeof word === "object"){
+		if(word.cat && word.id){
+			wordObj = JSON.parse(JSON.stringify(word)); //deep copy shortcut
+			//convert "clitic" to "syll" if we're making a prosodic tree
+			if(wordObj.cat==="clitic"){
+				if(!syntactic){
+					wordObj.cat = "syll";
+				}
+				else{ //if it's a clitic and we're making syntactic trees, then give it an x0 layer 
+					var cliticObj = wordObj;
+					wordObj = addParent(cliticObj);
+				}
+			} 
+			//otherwise change cat to the specified cat if they don't match
+			else if (wordObj.cat !== cat){
+				wordObj.cat = cat;
+			}
+			
+			return wordObj;
+		}
+		else displayWarning("wrapInLeafCat: argument word is already an object but lacks an id or cat.");
 	}
-	var wordObj = {cat: myCat};
 
-	//check if the input specifies this is an accented word, and set accent to true if so
-	if(word.indexOf('-accent') >= 0){
-		wordObj.accent = true;
-		wordId = wordId.split('-accent')[0];
+	//Otherwise, word is a string and must be converted into an object.
+	else{
+		var myCat = cat || 'w'; //by default, the leaf category is 'w'
+		var wordId = word;
+
+		//check if the input specifies this is a clitic and set category appropriately
+		var isClitic = word.indexOf('-clitic')>=0;
+		if (isClitic){
+			myCat = syntactic ? 'clitic' : 'syll'; //syntactic tree vs prosodic trees
+			wordId = wordId.split('-clitic')[0];
+		}
+		wordObj = {cat: myCat};
+
+		//check if the input specifies this is an accented word, and set accent to true if so
+		if(word.indexOf('-accent') >= 0){
+			wordObj.accent = true;
+			wordId = wordId.split('-accent')[0];
+		}
+		wordObj.id = wordId;
+
+		//add an x0 layer if this is a (syntactic) clitic
+		if(myCat==="clitic"){
+			wordObj = addParent(wordObj);
+		}
+		return wordObj;
 	}
-	wordObj.id = wordId;
-	return wordObj;
 }
-/* Function that calls GEN from candidategenerator.js to generate syntactic input trees
+
+function addParent(child, parentCat="x0", parentId="clitic_x0"){
+	return {cat:parentCat, id:parentId, children:[child]};
+}
+function containsClitic(x) {
+    return x.indexOf("clitic") > -1;
+  }
+  
+  
+  function generateWordOrders(wordList, clitic) {
+    if (typeof wordList === 'string') {
+      var cliticTagIndex = wordList.indexOf("-clitic");
+      if (cliticTagIndex > 0) {
+        var wordListParts = wordList.split("-clitic");
+        wordList = wordListParts[0] + wordListParts[1];
+      }
+      wordList = wordList.split(' ');
+    }
+    //Find the clitic to move around
+    var cliticIndex = wordList.indexOf(clitic);
+    try {
+      if (cliticIndex < 0)
+        throw new Error("The provided clitic " + clitic + " was not found in the word list");
+    }
+    catch(err) {
+      displayError(err.message, err);
+    }
+    //Slice the clitic out
+    var beforeClitic = wordList.slice(0, cliticIndex);
+    var afterClitic = wordList.slice(cliticIndex + 1, wordList.length);
+    var cliticlessWords = beforeClitic.concat(afterClitic);
+  
+    var orders = new Array(wordList.length);
+    for (var i = 0; i <= cliticlessWords.length; i++) {
+      beforeClitic = cliticlessWords.slice(0, i);
+      afterClitic = cliticlessWords.slice(i, cliticlessWords.length);
+      orders[i] = beforeClitic.concat([clitic + "-clitic"], afterClitic);
+    }
+    return orders;
+  }
+  
+  /* Arguments:
+      stree: a syntatic tree, with the clitic marked as cat: "clitic"
+      words: optional string or array of strings which are the desired leaves
+      options: options for GEN
+  
+     Returns: GEN run on each possible order of the words, where possible orders
+     are those where terminals other than the clitic remian in place but the clitic can occupy any position.
+  
+     Caveat: If there are multiple clitics, only the first will be moved.
+  */
+  
+  function GENwithCliticMovement(stree, words, options) {
+    if(!words && (!stree.cat || !stree.id)){
+      displayError("GENwithCliticMovement was called with no valid input!");
+      return [];
+    }
+    // Identify the clitic of interest
+    var clitic = '';
+    // First try to read words and clitic off the tree
+    var leaves = getLeaves(stree);
+    if (leaves.length > 0 && leaves[0].id) {
+      //console.log(leaves);
+      var leaf = 0;
+      while (clitic === '' && leaf < leaves.length) {
+        if (leaves[leaf].cat === "clitic")
+          clitic = leaves[leaf].id;
+        leaf++;
+      }
+      if (clitic === '') {
+        displayWarning("You selected GEN settings that move clitics, but one or more input trees do not have a clitic lableled.");
+        return GEN(stree, words, options);
+        //throw new Error("GENWithCliticMovement was called but no node in stree has category clitic was provided in stree");
+  
+      }
+    }
+    //Otherwise, get the clitic from words
+    else {
+      // Make sure words is an array
+      if (typeof words === "string") {
+        words = words.split(' ');
+      }
+      var x = words.find(containsClitic);
+      if (!x) { //x is undefined if no word in "words" contains "clitic"
+        displayWarning("You selected GEN settings that move clitics, but one or more input trees do not have a clitic lableled.");
+        return GEN(stree, words, options);
+      }
+      clitic = x.split('-clitic')[0];
+      words[words.indexOf(x)] = clitic;
+    }
+  
+    //Make sure words is defined before using it to generate word orders
+    if (!words || words.length < leaves.length) {
+      words = new Array(leaves.length);
+      for (var i in leaves) {
+        words[i] = leaves[i].id;
+      }
+  
+    }
+    var wordOrders = generateWordOrders(words, clitic);
+    var candidateSets = new Array(wordOrders.length);
+    for (var i = 0; i < wordOrders.length; i++) {
+      candidateSets[i] = GEN(stree, wordOrders[i], options);
+    }
+    //candidateSets;
+    return [].concat.apply([], candidateSets);
+  }
+  
+  /**
+   * GENwithPermutation: function that takes an stree or a list of words and returns a set of candidates
+   * <input, output> in which input = stree and the outputs are GEN run on all orders of the words.
+   * Word orders are computed using Heap's algorithm, implemented in allOrdersInner().
+   * 
+   * @param {*} stree A syntactic tree to use as the input in the candidate pairs <input, output> 
+   * @param {*} words A list of words. Can be a string of space-separated words, or an array of words
+   * @param {*} options An object of options to pass along to GEN()
+   */
+  //If both an stree and words are provided, words take priority. 
+  function GENwithPermutation(stree, words, options){
+  
+    options = options || {};
+  
+      var leaves = getLeaves(stree);
+  
+    if(!leaves[0].cat){
+      leaves = [];
+    }
+  
+      var permutations = [];
+    var words = words || [];
+  
+      //function for swapping elements in an array, takes array and indexes of elements to be swapped
+      function swap(array, index1, index2){
+          var swapped = [];
+          for(var i = 0; i<array.length; i++){
+              if(i === index1){
+                  swapped.push(array[index2]);
+              }
+              else if(i === index2){
+                  swapped.push(array[index1]);
+              }
+              else{
+                  swapped.push(array[i]);
+              }
+          }
+          return swapped;
+      }
+  
+      //actual implementation of Heap's algorithm
+  
+      function allOrdersInner(innerList, k){
+          if(k == 1){
+              permutations.push(innerList);
+          }
+          else{
+              allOrdersInner(innerList, k-1); //recursive function call
+  
+              for(var i = 0; i < k-1; i++){
+                  if(k%2 === 0){
+                      //swap innerList[i] with innerList[k-1]
+                      allOrdersInner(swap(innerList, 0, k-1), k-1); //recursive function call
+                  }
+                  else {
+                      //swap innerList[0] with innerList[k-1]
+                      allOrdersInner(swap(innerList, i, k-1), k-1); //recursive function call
+                  }
+              }
+          }
+      }
+  
+    // Make sure words is an array
+    if (typeof words === "string") {
+      words = words.split(' ');
+      if (words[0] === ""){
+        words = [];
+      }
+    }
+    
+      //Make sure words is defined before using it to generate word orders
+    //Display warning if:
+    //    -There are no words or leaves
+    //    -There are mismatching words and leaves
+    if(!words.length && !leaves.length){
+      displayWarning("GENwithPermutation() was not given any syntactic tree or words to permute.");
+      return '';
+    }
+      else if(words.length && leaves.length && leaves.length !== words.length){
+      displayWarning("The arguments words and stree to GENwithPermutation() are mismatched. The function will use words and ignore the stree.");
+      }
+    else if(!words.length && leaves.length){
+      words = new Array(leaves.length);
+      for(var i in leaves){
+        words[i] = leaves[i].id;
+      }	
+      }
+  
+      allOrdersInner(words, words.length);
+      var candidateSets = [];
+      for(var i = 0; i<permutations.length; i++){
+          candidateSets[i] = GEN(stree, permutations[i], options);
+      }
+      //candidateSets;
+      return [].concat.apply([], candidateSets);
+  }
+  /* Add minimal phi heads
+   Takes list of ptrees and returns list of all possible iterations of input such that
+   each minimal phi in the input has a left- or right-aligned head
+   Max Tarlov 12/2020
+*/
+
+// Make a deep copy of a tree node
+function copyNode(node) {
+    if (node === null || typeof node !== 'object') {
+        return node;
+    }
+    let result = node.constructor(); 
+    for (var key in node) {
+      result[key] = copyNode(node[key]);
+    }
+    return result;
+}
+
+// Takes node and returns true if any of node's children had a true 'head' attribute
+function isHeaded(node) {
+    let result = false;
+    for (let child of node.children) {
+        if (child.head) {
+            result = true;
+        }
+    }
+    return result;
+}
+
+// Accept node and add attribute head: true to the leftmost child
+function addLeftHead(node) {
+    if(node.children && node.children.length) {
+        node.children[0].head = true;
+    }
+    return node;
+}
+
+// Accept node and add attribute head: true to the rightmost child
+function addRightHead(node) {
+    if(node.children && node.children.length){
+        node.children[node.children.length - 1].head = true;
+    }
+    return node;
+}
+
+// take tree and return minimal nodes of specified category
+function getMinimalNodes(root, cat='phi') {
+    let result = [];
+    function getNodesInner(node) {
+        if(node.children && node.children.length) {
+            for(let child of node.children) {
+                getNodesInner(child);
+            }
+        }
+        if(isMinimal(node) && node.cat == cat) {
+            result.push(node);
+        }
+    }
+    getNodesInner(root);
+    return result;
+}
+
+/** Function that takes a single tree
+ * and returns a list of trees consisting of all permutations 
+ * of edge-aligned head placements for minimal nodes of category cat 
+ * */ 
+function genHeadsForTree(ptree, cat='phi') {
+    let result = [];
+
+    //add left heads to all minimalNodes
+    let localCopy = copyNode(ptree);
+    const minimals = getMinimalNodes(localCopy, cat);
+    for(let node of minimals) {
+        addLeftHead(node);
+    }
+    result.push(localCopy);
+
+    //progressively change minimal nodes to right-headed for all combinations
+    for(let i = 0; i < minimals.length; i++) {
+        const resultLength = result.length; //note that the length of result increases with each iteration of the outer for-loop
+
+        for(let j = 0; j < resultLength; j++) {
+            localCopy = copyNode(result[j]);
+            let thisMinimal = getMinimalNodes(localCopy, cat)[i];
+            if(thisMinimal.children && thisMinimal.children.length > 1) {
+                // Skip unary nodes to avoid duplicate trees   
+                thisMinimal.children[0].head = false;
+                addRightHead(thisMinimal);
+                result.push(localCopy);
+            }
+        }
+    }
+
+    return result;
+}
+
+/** Main function. 
+ * 
+ * Arguments:
+ * - treeList: a list of trees, or a list of pairs of trees (GEN output)
+ * - cat: a category to pass along to addHeadsTo()
+ * 
+ * Returns: a list of all combinations of left- and right-headed minimal 
+ * nodes of category 'cat' for each tree. If treeList is a list of pairs of
+ * trees, the return value will also be a list of pairs of trees, preserving 
+ * the inputs and iterating through the possible headed outputs.
+ * 
+ * Helper functions: addHeadsTo()
+*/ 
+function genHeadsForList(treeList, cat='phi') {
+    let result = [];
+    for(let tree of treeList) {
+        if(tree.length && tree.length === 2) // treeList is a list of pairs of trees (GEN output)
+        {
+            let headedTrees = genHeadsForTree(tree[1], cat);
+            var interimResult = [];
+            for(let ht in headedTrees){
+                interimResult.push([tree[0], headedTrees[ht]]); //push the pair [stree, headedPTree]
+            }
+            result = result.concat(interimResult);
+        }
+        else if(tree.cat) // treeList's elements are plain trees, not pairs of trees
+        {
+            result = result.concat(genHeadsForTree(tree, cat));
+        }
+        else throw new Error("addMinimalNodeHeads(treeList, cat): Expected treeList to be a list of pairs of trees or a list of trees.");
+    }
+    return result;
+}/* Function that calls GEN from candidategenerator.js to generate syntactic input trees
 *  rather than output prosodic trees.
 *  By default, this creates unary and binary-branching strees rooted in xp, with all terminals mapped to x0.
 *  Intermediate levels are xps, and structures of the form [x0 x0] are excluded as being
@@ -5344,6 +7956,10 @@ function wrapInLeafCat(word, cat, syntactic){
 *  - addClitics: 'right' or 'left' determines whether clitics are added on the
 *    righthand-side or the left; true will default to right. false doesn't add any clitics.
 *    Default false.
+*  - cliticsAreBare: false by default. If false, clitics will be wrapped in unary XPs. 
+*    If true, clitics will not be wrapped in XPs, but will be bare heads with category clitic.
+*  - cliticsInsideFirstRoot: false by default. If true, clitics are positioned "inside" the highest 
+*    XP as sister to an invisible X' layer. Otherwise, clitics are sister to the highest XP.
 *  - headSide: 'right', 'left', 'right-strict', 'left-strict'.
 *    Which side will heads be required to be on, relative to their complements?
 *    Also, must heads be at the very edge (strict)?
@@ -5354,6 +7970,8 @@ function wrapInLeafCat(word, cat, syntactic){
 function sTreeGEN(terminalString, options)
 {
     options = options || {};
+
+    // Options that default to true
     if(options.noAdjacentHeads === undefined){
         options.noAdjacentHeads = true;
     }
@@ -5364,11 +7982,34 @@ function sTreeGEN(terminalString, options)
     options.rootCategory = options.rootCategory || 'xp';
 
     // If bar levels are not treated as phrasal, then we need to allow ternary XPs and CPs, but not ternary x0s.
+    // Furthermore, clitics should be positioned in the "specifier", as a daughter to the existing root, not a sister.
+    if(options.cliticsInsideFirstRoot){
+      options.noBarLevels = true;
+    }
     if(options.noBarLevels && options.recursiveCategory !== 'x0'){
       options.maxBranching = 3;
+      options.cliticsInsideFirstRoot = true;
     }
+
+
     //Otherwise, we want binary branching syntactic inputs.
     options.maxBranching = options.maxBranching || 2;
+
+    //If clitics are specified as bare x0s, then all unary XPs should be invisible for consistency
+    if(options.cliticsAreBare){
+      options.noUnary = true;
+    }
+
+    //If non-branching XPs are invisible, then clitics should be bare X0s
+    //and noAdjacentHeads needs to be false.
+    if(options.noUnary){
+      options.cliticsAreBare = true;
+      options.noAdjacentHeads = false;
+    }
+
+    if(options.recursiveCategory === 'x0'){
+      options.noAdjacentHeads = false;
+    }
 
     //Run GEN on the provided terminal string
     var autoSTreePairs = GEN({}, terminalString, options);
@@ -5385,14 +8026,16 @@ function sTreeGEN(terminalString, options)
     if(options.noAdjuncts){
         sTreeList = sTreeList.filter(x => !containsAdjunct(x));
     }
+
+    //If adding clitics, various other options are relevant: clitic category (cliticsAreBare), whether clitics go inside the existing root as a daughter, or outside as a sister ()
     if(options.addClitics){
-        if(options.rootCategory !== 'cp'){
-          var outsideClitics = sTreeList.map(x => addCliticXP(x, options.addClitics, options.rootCategory));
-        }
-        else {
+        if(options.rootCategory == 'cp' || options.cliticsInsideFirstRoot){
           var outsideClitics = [];
         }
-        var insideClitics = sTreeList.map(x => addCliticXP(x, options.addClitics, options.rootCategory, true));
+        else {
+          var outsideClitics = sTreeList.map(x => addClitic(x, options.addClitics, options.rootCategory, false, options.cliticsAreBare));;
+        }
+        var insideClitics = sTreeList.map(x => addClitic(x, options.addClitics, options.rootCategory, true, options.cliticsAreBare));
         sTreeList = outsideClitics.concat(insideClitics);
     }
     if(options.noAdjacentHeads){
@@ -5423,24 +8066,38 @@ function sTreeGEN(terminalString, options)
     return sTreeList;
 }
 
-function addCliticXP(sTree, side="right", rootCategory, inside){
-    var cliticXP = {id:'dp', cat: 'xp', children: [{id:'x', cat: 'clitic'}]};
+/** Helper function to add clitics to trees
+ *  side: which side should clitics be added on? left/right
+ *  rootCategory: normally xp but could be cp or x0
+ *  inside: if true, clitics are daughters to the input sTree; otherwise, sisters to it
+ */
+function addClitic(sTree, side="right", rootCategory, inside, bareClitic){
+  if(side===true){side="right"}
+  var cliticX0 = {id:'cliticParent', cat:'x0', children:[{id:'x', cat: 'clitic'}]};
+  //Unless bareClitic==true, wrap the clitic in an XP layer
+  if(!bareClitic){
+    var cliticObj = {id:'dp', cat: 'xp', children: [cliticX0]};
+  }
+  else{
+    var cliticObj = cliticX0;
+  }
+    
     var tp;
     var sisters;
     //Make the clitic a daughter of sTree
     if(inside){
         //console.log("inside");
         if(side==="right"){
-            sisters = sTree.children.concat(cliticXP);
+            sisters = sTree.children.concat(cliticObj);
         }
         else if(side==="left"){
-            sisters = [cliticXP].concat(sTree.children);
+            sisters = [cliticObj].concat(sTree.children);
             //console.log(tp);
         }
         else{
-            var errorMsg = "addCliticXP(): The provided side " + side + " is not valid. Side must be specified as 'left' or 'right'.";
-            displayError(err.message, err);
-            throw new Error(errorMsg)
+            var errorMsg = "addClitic(): The provided side " + side + " is not valid. Side must be specified as 'left' or 'right'.";
+            displayError(errorMsg);
+            throw new Error(errorMsg);
         }
         
     }
@@ -5448,13 +8105,13 @@ function addCliticXP(sTree, side="right", rootCategory, inside){
     else{
         var sisters;
         if(side==="right"){
-            sisters = [sTree, cliticXP];
+            sisters = [sTree, cliticObj];
         }
         else if(side==="left"){
-            sisters = [cliticXP, sTree];
+            sisters = [cliticObj, sTree];
         }
         else{
-            var errorMsg = "addCliticXP(): The provided side " + side + " is not valid. Side must be specified as 'left' or 'right'.";
+            var errorMsg = "addClitic(): The provided side " + side + " is not valid. Side must be specified as 'left' or 'right'.";
             displayError(err.message, err);
             throw new Error(errorMsg)
         }
@@ -5532,1438 +8189,27 @@ function getPermutations(T, data, last, index, permList) {
   }
   return permList;
 }
-var uTreeCounter = 0;
-var treeUIsTreeMap = {};
-
-function UTree(root) {
-
-	var self = this;
-	this.root = root;
-	this.treeIndex = uTreeCounter++;
-	treeUIsTreeMap[this.treeIndex] = this;
-
-	this.nodeNum = 0;
-	this.nodeMap = {};
-	this.addMeta = function(node, parent) {
-		node.m = {nodeId: this.nodeNum++, parent: parent, treeIndex: this.treeIndex};
-		this.nodeMap[node.m.nodeId] = node;
-		if (node.children) {
-			for (var i = 0; i < node.children.length; i++) {
-				this.addMeta(node.children[i], node);
-			}
-		}
-	};
-	this.addMeta(this.root);
-	this.root.m.isRoot = true;
-
-	function assignDims(node) {
-		var height = 0, width = 0;
-		if (node.children && node.children.length) {
-			for (var i = 0; i < node.children.length; i++) {
-				var childResult = assignDims(node.children[i]);
-				width += childResult.width; // width in number of cells
-				height = Math.max(childResult.height, height); //height counts how many levels up from the terminals this node is
-			}
-			height += 1; // for this node
-		} else {
-			width = 1;
-		}
-		node.m.height = height;
-		node.m.width = width;
-		return node.m;
-	}
-
-	this.toTable = function() {
-		assignDims(this.root);
-		var table = [];
-		for (var i = 0; i <= this.root.m.height; i++) {
-			table.push([]);
-		}
-		function processNode(node, parentHeight) {
-			var height = node.m.height;
-			table[height].push({node: node, width: node.m.width, hasStem: parentHeight > height, stemOnly: false});
-			for (var h = height+1; h < parentHeight; h++) {
-				table[h].push({width: node.m.width, stemOnly: true});
-			}
-			if (node.children && node.children.length) {
-				for (var i = 0; i < node.children.length; i++) {
-					processNode(node.children[i], height);
-				}
-			}
-		}
-		processNode(this.root, this.root.height);
-		return table;
-	};
-
-	function makeElementId(elType, node) {
-		return [elType, node.m.nodeId, self.treeIndex].join('-');
-	}
-
-	function toInnerHtmlFrags(frags) {
-		if (!frags) frags = [];
-		var table = self.toTable();
-		for (var h = table.length-1; h >= 0; h--) {
-			var rowFrags = [];
-			var row = table[h];
-			for (var i = 0; i < row.length; i++) {
-				var block = row[i], node = block.node;
-				var pxWidth = block.width*80; // should be an even number of pixels
-				var stemLeftWidth = pxWidth/2 - 2, stemRightWidth = pxWidth/2;
-				var stem = '<div class="inline-block stemSide" style="width: ' + stemLeftWidth + 'px; border-right: 2px black solid"></div><div class="inline-block stemSide" style="width: ' + stemRightWidth + 'px"></div>';
-				if (block.stemOnly) {
-					rowFrags.push(stem);
-				} else {
-					var stemContainer = '';
-					if (block.hasStem) {
-						stemContainer = '<div class="stemContainer">' + stem + '</div>';
-					}
-					var nodeClasses = 'treeNode';
-					if (node.m.isRoot) {
-						nodeClasses += ' rootNode';
-					}
-					var catInputId = makeElementId('catInput', node), idInputId = makeElementId('idInput', node);
-					rowFrags.push('<div id="treeNode-' + node.m.nodeId + '-' + node.m.treeIndex + '" class="' + nodeClasses + '" style="width: ' + pxWidth + 'px">' + stemContainer + '<div class="inputContainer"><input id="' + catInputId + '" class="catInput" type="text" value="' + node.cat + '"></input></div><div class="inputContainer"><input id="' + idInputId + '" class="idInput" type="text" value="' + node.id + '"></input></div></div>');
-				}
-			}
-			frags.push('<div>');
-			frags.push(rowFrags.join(''));
-			frags.push('</div>');
-		}
-		return frags;
-	};
-
-	this.toInnerHtml = function() {
-		return toInnerHtmlFrags().join('');
-	}
-
-	this.toHtml = function() {
-		var frags = ['<div class="treeUI-tree" id="treeUI-' + self.treeIndex + '">'];
-		toInnerHtmlFrags(frags);
-		frags.push('</div>');
-		return frags.join('');
-	}
-
-	this.refreshHtml = function() {
-		document.getElementById('treeUI-'+self.treeIndex).innerHTML = self.toInnerHtml();
-	}
-
-	this.toJSON = function() {
-		return JSON.stringify(this.root, function(k, v) {
-			if (k !== 'm') return v;
-		}, 4);
-	};
-
-	this.addParent = function(nodes) {
-		var indices = [], parent = nodes[0].m.parent;
-		if (!parent) {
-			throw new Error('Cannot add a mother to the root node');
-		}
-		for (var i = 0; i < nodes.length; i++) {
-			var node = nodes[i];
-			if (node.m.parent !== parent) throw new Error('Nodes must have same the mother.');
-			if (parent) {
-				indices.push(parent.children.indexOf(node));
-			}
-		}
-		indices.sort();
-		if (indices && indices[0] < 0) throw new Error('Mother node not found.');
-		for (var i = 1; i < indices.length; i++) {
-			if (indices[i] !== indices[i-1]+1) throw new Error('Nodes must be adjacent sisters.');
-		}
-
-		// create new node, connect it to parent
-		var newNode = {cat: 'xp'};
-		this.addMeta(newNode, parent);
-		newNode.id = 'XP_' + newNode.m.nodeId; // this does not guarantee uniqueness, but probably close enough for now
-
-		// connect new node to children
-		var firstChildIndex = indices[0], lastChildIndex = indices[indices.length-1];
-		newNode.children = parent.children.slice(firstChildIndex, lastChildIndex+1);
-
-		// connect children to new node
-		for (var i = 0; i < newNode.children.length; i++) {
-			newNode.children[i].m.parent = newNode;
-		}
-
-		// connect parent to new node
-		parent.children = parent.children.slice(0, firstChildIndex).concat([newNode], parent.children.slice(lastChildIndex+1));
-	};
-
-	this.deleteNode = function(node) {
-		// connect children to parent
-		var parent = node.m.parent, children = node.children || [];
-		for (var i = 0; i < children.length; i++) {
-			children[i].m.parent = parent;
-		}
-
-		// connect parent to children
-		if (node.m.parent) {
-			var index = node.m.parent.children.indexOf(node);
-			node.m.parent.children = node.m.parent.children.slice(0, index).concat(children, node.m.parent.children.slice(index+1));
-
-			// remove from node map
-			delete this.nodeMap[node.m.nodeId];
-		} else { // delete UTree and associated element if root
-			delete treeUIsTreeMap[node.m.treeIndex];
-			var elem = document.getElementById('treeUI-' + this.treeIndex);
-			elem.parentNode.removeChild(elem);
-		}
-	};
+var logLines = [];
+function logreport(line){
+    logLines.push(['<span class="report-line segment-', lastSegmentId, (lastSegmentId >= nextSegmentToReveal) ? ' segment-hidden' : '', '">', line, '<br></span>'].join(''));
+    flushLog();
 }
-
-UTree.fromTerminals = function(terminalList) {
-	var dedupedTerminals = deduplicateTerminals(terminalList);
-	var cliticRegex = /-clitic/; //for testing if terminal should be a clitic
-
-	//Make the js tree (a dummy tree only containing the root CP)
-	var root = {
-		"id":"CP1",
-		"cat":"cp",
-		"children":[]
-	};
-	//Add the provided terminals
-	for(var i=0; i<dedupedTerminals.length; i++){
-		//if terminal should be a clitic
-		if(cliticRegex.test(dedupedTerminals[i])){
-			//push a clitic to root.children
-			root.children.push({
-				"id":dedupedTerminals[i].replace('-clitic', ''),
-				"cat":"clitic"
-			});
-		}
-		//non-clitic terminals
-		else {
-			root.children.push({
-				"id":dedupedTerminals[i],
-				"cat":"x0"
-			});
-		}
-	}
-	return new UTree(root);
-};
-
-function showUTree(tree){
-	treeTableContainer.innerHTML += tree.toHtml();
-	refreshNodeEditingButtons();
-
-	document.getElementById('treeUIinner').style.display = 'block';
-
-	var treeContainer = document.getElementById("treeTableContainer");
-	treeContainer.scrollTop = treeContainer.scrollHeight;
-
+logreport.debug = function() {
+    if (logreport.debug.on)
+        return logreport.call(this, Array.prototype.slice.call(arguments));
 }
-
-function clearUTrees(){
-	treeTableContainer.innerHTML = '';
-	treeUIsTreeMap = {};
-}
-
-function addOrRemoveUTrees(addTree){
-	if(addTree){
-		treeTableContainer.innerHTML += addTree.toHtml();
-	}
-	else{
-		clearUTrees();
-	}
-	refreshNodeEditingButtons();
-
-	document.getElementById('treeUIinner').style.display = 'block';
-
-	var treeContainer = document.getElementById("treeTableContainer");
-	treeContainer.scrollTop = treeContainer.scrollHeight;
-}
-
-function refreshNodeEditingButtons() {
-	var treeTableContainer = document.getElementById('treeTableContainer');
-	var hasSelection = treeTableContainer.getElementsByClassName('selected').length > 0;
-	var buttons = document.getElementsByClassName('nodeEditingButton');
-	for (var i = 0; i < buttons.length; i++) {
-		buttons[i].disabled = !hasSelection;
-	}
-}
-
-function getSTrees() {
-	var spotForm = document.getElementById('spotForm');
-	var sTrees;
-	sTrees = JSON.parse(spotForm.sTree.value);
-	if (!(sTrees instanceof Array)) {
-		sTrees = [sTrees];
-	}
-	return sTrees;
-}
-
-function danishTrees() {
-	var patterns = [
-		[[{}],[{}]],
-		[[{}],[{},{}]],
-		[[{},{}],[{}]],
-		[[{},{}],[{},{}]],
-		[[{}],[[{}],[{}]]],
-		[[{}],[[{}],[{},{}]]],
-		[[{}],[[{},{}],[{}]]],
-		[[{},{}],[[{}],[{}]]],
-		[[{}],[[{},{}],[{},{}]]],
-		[[{},{}],[[{}],[{},{}]]],
-		[[{},{}],[[{},{}],[{}]]],
-		[[{},{}],[[{},{}],[{},{}]]],
-		[[[{}],[{}]],[{}]],
-		[[[{}],[{}]],[{},{}]],
-		[[[{}],[{},{}]],[{}]],
-		[[[{},{}],[{}]],[{}]],
-		[[[{}],[{},{}]],[{},{}]],
-		[[[{},{}],[{}]],[{},{}]],
-		[[[{},{}],[{},{}]],[{}]],
-		[[[{},{}],[{},{}]],[{},{}]]
-	];
-
-	function patternToJS(pattern) {
-		var xpid = 1, x0id = 1;
-		function patternPartToJS(pattern) {
-			var node = {};
-			if (pattern instanceof Array) {
-				node.id = "XP" + xpid++;
-				node.cat = "xp";
-				node.children = [];
-				for (var i = 0; i < pattern.length; i++) {
-					node.children.push(patternPartToJS(pattern[i]));
-				}
-			} else {
-				node.id = "f_" + x0id++;
-				node.cat = "x0";
-			}
-			return node;
-		}
-		return patternPartToJS(pattern);
-	}
-
-	var sTrees = [];
-
-	for (var i = 0; i < patterns.length; i++) {
-		sTrees.push(patternToJS(patterns[i]));
-	}
-
-	return sTrees;
-}
-
-window.addEventListener('load', function(){
-
-	var spotForm = document.getElementById('spotForm');
-
-	if (!spotForm) {
-		console.error('no spot form');
-		return;
-	}
-
-	spotForm.addEventListener('change', function(ev) {
-		var target = ev.target;
-		if (target.name === 'constraints') {
-			var catRow = target.closest('div .constraint-selection-table').classList;
-			if (target.checked) {
-				catRow.add('constraint-checked');
-			}
-			else {
-				catRow.remove('constraint-checked');
-			}
-			//console.log(catRow);
-		}
-
-	});
-
-	spotForm.onsubmit=function(e){
-		if (e.preventDefault) e.preventDefault();
-
-		//Build a list of checked constraints.
-		var constraintSet = [];
-		for(var i=0; i<spotForm.constraints.length; i++){
-			var constraintBox = spotForm.constraints[i];
-			if(constraintBox.checked){
-				var constraint = constraintBox.value;
-				//Figure out all the categories selected for the constraint
-				if(spotForm['category-'+constraint]){
-					var constraintCatSet = spotForm['category-'+constraint];
-					if (constraintCatSet.length === undefined) {
-						constraintCatSet = [constraintCatSet];
-					}
-					for(var j=0; j<constraintCatSet.length; j++){
-						var categoryBox = constraintCatSet[j];
-						if(categoryBox.checked){
-							var category = categoryBox.value;
-							if(constraint === "alignLeftMorpheme" || constraint === 'alignRightMorpheme') {
-								category = category.split(' ').join(';');
-							}
-							if(constraint === "binMaxHead") {
-								constraintSet.push('binMaxHead-' + category + '-{"side" : "' + spotForm['genOptions-showHeads'].value + '"}')
-							}
-							//Figure out selected match options for the constraint
-							else if(spotForm['option-'+constraint]){
-								var constraintOptionSet = spotForm['option-'+constraint];
-								var options = {};
-								if(constraintOptionSet.length){
-									for(var k=0; k<constraintOptionSet.length; k++){
-										var optionBox = constraintOptionSet[k];
-										//If lexical or overtly headed is checked, then option is true
-										if(optionBox.checked) {
-											options[optionBox.value] = true;
-										}
-										//If option is in a select, not a checkbox, and the option is not "any", then option is true
-										if(optionBox.checked === undefined && optionBox.value !== 'any') {
-											options[optionBox.value] = true;
-										}
-									}
-								}
-								else{ //constraint only has one possible option:
-									if(constraintOptionSet.checked){
-										options[constraintOptionSet.value] = true;
-									}
-								}
-								var strOptions = JSON.stringify(options);
-								constraintSet.push(constraint+'-'+category+'-'+strOptions);
-							}
-							else {
-								constraintSet.push(constraint+'-'+category);
-							}
-						}
-					}
-				}
-				else
-					constraintSet.push(constraint);
-			}
-		}
-
-		// Get the automatically generated syntactic trees
-		if(document.getElementById('inputOptions').style.display == 'block') {
-			var sTrees;
-			try{
-				sTrees = getAutoSTreeList();
-			}
-			catch(e){
-				displayError(e.message, e);
-				return;
-			}
-		}
-		else {
-			// Get the input syntactic tree from tree builder
-			var sTrees;
-			try{
-				sTrees = getSTrees();
-			}
-			catch(e){
-				displayError(e.message, e);
-				return;
-			}
-		}
-
-		//Get input to GEN.
-		var pString = spotForm.inputToGen.value;
-		// Get the code that is in the stree textarea
-		var treeCode = spotForm.sTree.value;
-		// if code has been generated, then ignore pString in GEN
-		if(treeCode !== "{}") {
-			pString = "";
-		}
-		var doubleInputWarningMsg = "Inputs were provided on both the Manual tab and the Automatic tab of Gen: Inputs. The candidate set will be created using inputs on the tab that is currently visible. Inputs that are not currently displayed will be ignored.";
-		//If the Automatic tab is visible, check whether the manual tab also has content & provide a warning.
-		if(document.getElementById('inputOptions').style.display == 'block') {
-			if (spotForm.inputToGen.value != "" || (treeCode != "{}" && treeCode != "[]")) {
-				displayWarning(doubleInputWarningMsg);
-			}
-			pString = "";
-		}
-		//Otherwise, the Manual tab is visible, so check whether the Automatic tab has content
-		else{
-			//console.log(getAutoSTreeList());
-			if (getAutoSTreeList()){
-				displayWarning(doubleInputWarningMsg);
-			}
-		}
-		//Build a list of checked GEN options.
-		var genOptions = {};
-		for(var i=0; i<spotForm.genOptions.length; i++){
-			var optionBox = spotForm.genOptions[i];
-			genOptions[optionBox.value]=optionBox.checked;
-		}
-
-		//record exhaustivity options if selected
-		if(genOptions['obeysExhaustivity']){
-			var exCats = [];
-			for(var i=0; i<spotForm.exhaustivityCats.length; i++){
-				var exCatBox = spotForm.exhaustivityCats[i];
-				if(exCatBox.checked)
-					exCats = exCats.concat(exCatBox.value);
-			}
-			genOptions['obeysExhaustivity'] = exCats;
-		}
-
-		// if max branching option is selected
-		if(genOptions['maxBranching']){
-			genOptions['maxBranching'] = spotForm.maxBranchingValue.value;
-		}
-
-		//plug correct value into category options
-		genOptions.rootCategory = spotForm['genOptions-rootCategory'].value;
-		genOptions.recursiveCategory = spotForm['genOptions-recursiveCategory'].value;
-		genOptions.terminalCategory = spotForm['genOptions-terminalCategory'].value;
-
-		//warn user if they do something weird with the category options
-		var rootCategoryError = new Error("The specified root category is lower on the prosodic hierarchy\nthan the specified recursive category.");
-		var terminalCategoryError = new Error("The specified recursive category is not higher on the prosodic hierarchy\nthan the specified terminal category.");
-		if(pCat.isHigher(genOptions.recursiveCategory, genOptions.rootCategory)){
-			if(!confirm(rootCategoryError.message + " Are you sure you want to continue?\nIf you are confused, change Root Category and Recursive Category\nin \"Options for prosodic tree generation (GEN function)\"")){
-				throw rootCategoryError;
-			}
-		}
-		if(!pCat.isHigher(genOptions.recursiveCategory, genOptions.terminalCategory)){
-			if(!confirm(terminalCategoryError.message + " Are you sure you want to continue?\nIf you are confused, change Terminal Category and Recursive Category\nin \"Options for prosodic tree generation (GEN function)\"")){
-				throw terminalCategoryError;
-			}
-		}
-
-
-		var tableauOptions = {
-			showTones: false,  //true iff tones are selected
-			trimStree: false,
-			invisibleCategories: []
-		};
-
-		if(document.getElementById("annotatedWithTones").checked){
-			//from radio group near the bottom of spotForm
-			genOptions.addTones = spotForm.toneOptions.value;
-		 	tableauOptions.showTones = spotForm.toneOptions.value;
-			//console.log(genOptions);
-		}
-		if(document.getElementById("trimTrees").checked){
-			tableauOptions.trimStree = true;
-		}
-		if(document.getElementById("showHeads").checked){
-			tableauOptions.showHeads = spotForm['genOptions-showHeads'].value;
-		}
-
-
-		for(var i = 0; i < spotForm.hideCategory.length; i++){
-			var hiddenCat = spotForm.hideCategory[i];
-			if(hiddenCat.checked){
-				tableauOptions.invisibleCategories.push(hiddenCat.value);
-			}
-		}
-
-		var resultsConCl = document.getElementById("results-container").classList;
-		resultsConCl.add('show-tableau');
-
-
-		var safe_input_length = true;
-		var safe_input_length_clitic = true;
-		var sTree;
-		var maxNumTerminals;
-		var j = 0;
-		while(safe_input_length && safe_input_length_clitic && j < sTrees.length){
-		//check for inputs that are too long and set safe_input_length = false as needed
-			sTree = sTrees[j];
-			maxNumTerminals = Math.max(getLeaves(sTree).length, pString.split(" ").length);
-			//warn user about possibly excessive numbers of candidates
-			if (genOptions['cliticMovement'])
-			{
-				if((maxNumTerminals >= 7) || (!genOptions['noUnary'] && maxNumTerminals >= 5))
-				{
-					safe_input_length_clitic = false;
-				}
-			}else if(maxNumTerminals >= 9 || (maxNumTerminals >= 6 && !genOptions['noUnary'])){
-				safe_input_length = false;
-			}
-			j++;
-		}
-		if(!safe_input_length){
-		//display warning and get confirmation
-			if(!confirm("You have one or more input with more than five terminals, which may run slowly and even freeze your browser, depending on the selected GEN options. Do you wish to continue?")){
-				throw new Error("Tried to run GEN with too many terminals");
-			}
-		}else if (!safe_input_length_clitic){
-			var tooManyCandMsg = "You have selected GEN settings that allow movement, and included a sentence of "+ maxNumTerminals.toString()+" terminals. This GEN may yield more than 10K candidates. To reduce the number of candidates, consider enforcing non-recursivity, exhaustivity, and/or branchingness for intermediate prosodic nodes. Do you wish to proceed with these settings?";
-			var continueGEN = confirm(tooManyCandMsg);
-			if(!continueGEN){
-				throw new Error("Tried to run GEN with clitic movement with too many terminals");
-			}
-		}
-
-		var csvSegs = [];
-		for (var i = 0; i < sTrees.length; i++) {
-			var sTree = sTrees[i];
-
-			//Actually create the candidate set
-			if (genOptions['cliticMovement']){
-			//	var candidateSet = GENwithCliticMovement(sTree, pString, genOptions);
-				var candidateSet = globalNameOrDirect(spotForm['genOptions-movement'].value)(sTree, pString, genOptions);
-			}
-			else{
-				var candidateSet = GEN(sTree, pString, genOptions);
-			}
-
-			//Make the violation tableau with the info we just got.
-			var tabl = makeTableau(candidateSet, constraintSet, tableauOptions);
-			csvSegs.push(tableauToCsv(tabl, ',', {noHeader: i}));
-			writeTableau(tabl);
-			revealNextSegment();
-		}
-
-		saveTextAs(csvSegs.join('\n'), 'SPOT_Results.csv');
-
-		// the function saveAs() has been moved to the end of this file to make it global
-
-		function saveTextAs(text, name) {
-			saveAs(new Blob([text], {type: "text/csv", encoding: 'utf-8'}), name);
-		}
-
-		return false;
-	};
-	//show/hide the tree code area
-	document.getElementById('tree-code-box').addEventListener('click', function(){
-		if (document.getElementById('tree-code-area').style.display === 'none' && document.getElementById('tree-code-box').checked){
-			document.getElementById('tree-code-area').style.display = 'block';
-			document.getElementById('sliderText').innerHTML = 'Hide code';
-		}
-		else{
-			document.getElementById('tree-code-area').style.display = 'none';
-			document.getElementById('sliderText').innerHTML = 'Show code';
-		}
-	});
-	document.getElementById('exhaustivityBox').addEventListener('click', function(){
-		if (document.getElementById('exhaustivityDetailOption1').style.display === 'none' && document.getElementById('exhaustivityBox').checked){
-			document.getElementById('exhaustivityDetailOption1').style.display = 'table-cell';
-			document.getElementById('exhaustivityDetailOption2').style.display = 'table-cell';
-		}
-		else{
-			document.getElementById('exhaustivityDetailOption1').style.display = 'none';
-			document.getElementById('exhaustivityDetailOption2').style.display = 'none';
-			//if (genOptions['obeysExhaustivity']){
-			//	genOptions['obeysExhaustivity'] = false;
-			//}
-
-		}
-	});
-	document.getElementById('movementOptions').addEventListener('click', function(){
-		var movementSpecifications = document.getElementById('movementSpecification');
-		if (movementSpecifications.style.display === 'none' && document.getElementById('movementOptions').checked){
-			movementSpecifications.style.display = 'block';
-		}
-		else{
-			movementSpecifications.style.display = 'none';
-		}
-	})
-
-	//show extra boxes for annotated with tones on click
-	//console.log(document.getElementById('annotatedWithTones'))
-	document.getElementById('annotatedWithTones').addEventListener('click', function(){
-		if (document.getElementById('tonesSelectionRow').style.display === 'none' && document.getElementById('annotatedWithTones').checked){
-			document.getElementById('tonesSelectionRow').style.display = '';
-		}
-		else{
-			document.getElementById('tonesSelectionRow').style.display = 'none';
-			//if (genOptions['usesTones']){
-			//	genOptions['usesTones'] = false;
-			//}
-		}
-
-	});
-
-	document.getElementById('showHeads').addEventListener('click', function(){
-		if (document.getElementById('headSideOptions').style.display === 'none' && document.getElementById('showHeads').checked){
-			document.getElementById('headSideOptions').style.display = '';
-		}
-		else{
-			document.getElementById('headSideOptions').style.display = 'none';
-		}
-	});
-
-	/*
-	document.getElementById("japaneseTonesInfo").addEventListener("click", toneInfoBlock("japanese"));
-	document.getElementById("irishTonesInfo").addEventListener("click", toneInfoBlock("irish"));
-	*/
-
-	//Code for generating the JS for a syntactic tree
-	var treeTableContainer = document.getElementById('treeTableContainer');
-
-	//Open the tree making GUI
-	document.getElementById('goButton').addEventListener('click', function(){
-		changeInputTabs('inputButton', 'goButton');
-	});
-
-	function refreshHtmlTree(treeIndex) {
-		if (treeIndex === undefined) {
-			for (index of Object.keys(treeUIsTreeMap)) {
-				refreshHtmlTree(index);
-			}
-			return;
-		}
-
-		if (treeIndex in treeUIsTreeMap) {
-			treeUIsTreeMap[treeIndex].refreshHtml();
-		}
-		refreshNodeEditingButtons();
-	}
-
-
-
-	//Set up the table...
-	document.getElementById('buildButton').addEventListener('click', function(){
-		// Get the string of terminals
-		var terminalString = spotForm.inputToGen.value;
-		var terminalList = terminalString.trim().split(/\s+/);
-
-		//Make the js tree (a dummy tree only containing the root CP)
-		var tree = UTree.fromTerminals(terminalList);
-		showUTree(tree);
-		document.getElementById('doneMessage').style.display = 'none';
-	});
-
-	// automatically generate syntax button
-	document.getElementById('inputButton').addEventListener('click', function(){
-		changeInputTabs('goButton', 'inputButton');
-	});
-
-	// show and display addClitics options
-	document.getElementById('add-clitics').addEventListener('change', function(){
-		if(document.getElementById('add-clitics').checked) {
-			document.getElementById('add-clitics-row').style.display = 'block';
-		}
-		else {
-			document.getElementById('add-clitics-row').style.display = 'none';
-		}
-	});
-
-	// done button for auto input gen
-	document.getElementById('autoGenDoneButton').addEventListener('click', function(){
-		document.getElementById('autoDoneMessage').style.display = 'inline-block';
-		autoGenInputTree();
-		document.getElementById('autoTreeArea').style.display = 'block';
-		document.getElementById('syntax-tree-switch').checked = true;
-		document.getElementById('syntax-switch-text').innerHTML = 'Hide syntactic trees';
-	});
-
-	var sTreeList;
-
-	// automatically generate input tree
-	function autoGenInputTree() {
-		genTerminalStrings();
-		var strings = getStringsList();
-		var length = strings.length;
-
-		sTreeList = undefined;
-		document.getElementById('autoTreeBox').innerHTML = "";
-
-		for(var i=0; i<length; i++){
-			var inputString = strings[i];
-
-			// allow adjuncts and remove mirror images
-			var autoInputOptions = {};
-			var optionBox = spotForm.autoInputOptions;
-			for(var j = 0; j < optionBox.length; j++) {
-				if(optionBox[j].value == "noAdjuncts" || optionBox[j].value == "noBarLevels") {
-					autoInputOptions[optionBox[j].value] =! optionBox[j].checked;
-				}
-				else {
-					autoInputOptions[optionBox[j].value]=optionBox[j].checked;
-				}
-			}
-
-			// head requirements
-			var headReq = document.getElementById('head-req').value;
-			if(headReq !== 'select') {
-				var headSideVal = headReq;
-			}
-			autoInputOptions.headSide = headSideVal;
-
-			// add XP clitics directly under root
-			if(document.getElementById('add-clitics').checked) {
-				var addCliticsVal = document.getElementById('add-clitics').value;
-				if(document.getElementById('add-clitics-left').checked) {
-					addCliticsVal = 'left';
-				}
-			}
-			autoInputOptions.addClitics = addCliticsVal;
-
-			// root, recursive terminal, category
-			autoInputOptions.rootCategory = spotForm['autoInputOptions-rootCategory'].value;
-			autoInputOptions.recursiveCategory = spotForm['autoInputOptions-recursiveCategory'].value;
-			autoInputOptions.terminalCategory = spotForm['autoInputOptions-terminalCategory'].value;
-
-			if(autoInputOptions.recursiveCategory === 'x0' || autoInputOptions.noUnary){
-				autoInputOptions.noAdjacentHeads = false;
-			}
-
-			// console.log(autoInputOptions)
-
-			if(inputString !== "") {
-				var currSTreeList = sTreeGEN(inputString, autoInputOptions);
-				displayTable(currSTreeList);
-				if(sTreeList) {
-					sTreeList = sTreeList.concat(currSTreeList);
-				}
-				else {
-					sTreeList = currSTreeList;
-				}
-			}
-		}
-		//console.log(sTreeList)
-	}
-
-	function getAutoSTreeList() {
-		return sTreeList;
-	}
-
-	// add terminal string button
-	document.getElementById('addString').addEventListener('click', function(){
-		var length = spotForm.inputToGenAuto.length;
-		if(length === undefined) {
-			length = 1;
-		}
-		var newLength = length + 1;
-		length = length.toString();
-		newLength = newLength.toString();
-		document.getElementById('str'+length).insertAdjacentHTML('afterend', "<p id='str"+newLength+"'>String of terminals "+newLength+": <input type='text' name='inputToGenAuto'></p>");
-		document.getElementById('autoDoneMessage').style.display = 'none';
-	});
-
-	// check for change in syntax parameters
-	document.getElementById('syntax-parameters').addEventListener('change', function(){
-		document.getElementById('autoDoneMessage').style.display = 'none';
-	});
-	// check for change in syntax parameters
-	document.getElementById('syntax-parameters-clitics').addEventListener('change', function(){
-		document.getElementById('autoDoneMessage').style.display = 'none';
-	});
-	// check for change in syntax parameters
-	document.getElementById('syntax-parameters-phonology').addEventListener('change', function(){
-		document.getElementById('autoDoneMessage').style.display = 'none';
-	});
-
-	// check for change in 'string of terminals'
-	document.getElementById('terminalStrings').addEventListener('change', function(){
-		document.getElementById('autoDoneMessage').style.display = 'none';
-	});
-
-	// check for change in 'list of terminals'
-	document.getElementById('listOfTerminals').addEventListener('change', function(){
-		document.getElementById('autoDoneMessage').style.display = 'none';
-	});
-
-	// show/hide syntactic trees
-	document.getElementById('syntax-tree-switch').addEventListener('click', function(){
-		if (document.getElementById('autoTreeArea').style.display === 'none' && document.getElementById('syntax-tree-switch').checked){
-			document.getElementById('autoTreeArea').style.display = 'block';
-			document.getElementById('syntax-switch-text').innerHTML = 'Hide syntactic trees';
-		}
-		else{
-			document.getElementById('autoTreeArea').style.display = 'none';
-			document.getElementById('syntax-switch-text').innerHTML = 'Show syntactic trees';
-		}
-	});
-
-	// display tree tables
-	function displayTable(sTreeList) {
-		var treeTable = treeToTable(sTreeList);
-		document.getElementById('autoTreeBox').innerHTML += treeTable;
-	}
-
-	// create table from sTree list
-	function treeToTable(sTreeList) {
-		var htmlChunks = ['<table class="auto-table"><tbody>'];
-		var i = 1;
-		for(var s in sTreeList) {
-			var parTree = parenthesizeTree(sTreeList[s]);
-			htmlChunks.push('<tr>');
-			htmlChunks.push('<td>' + i + "." + '</td>');
-			htmlChunks.push('<td>' + parTree + '</td>');
-			htmlChunks.push('</tr>');
-			i++;
-		}
-		htmlChunks.push('</tbody></table>');
-		return htmlChunks.join('');
-	}
-
-	// GENERATE TERMINAL STRINGS
-
-	// add list of terminals button
-	document.getElementById('addList').addEventListener('click', function(){
-		var length = spotForm.genStringsInput.length;
-		if(length === undefined) {
-			length = 1;
-		}
-		var newLength = length + 1;
-		length = length.toString();
-		newLength = newLength.toString();
-		document.getElementById('list'+length).insertAdjacentHTML('afterend', "<div id='list"+newLength+"'>List of terminals "+newLength+": <input type='text' name='genStringsInput'><p>Number of terminals in generated strings:</p><p class='genStringsNum'>Min: <input type='text' name='genStringsMin' class='genStringsNumBox' style='margin-left: 4px'></p><p class='genStringsNum'>Max: <input type='text' name='genStringsMax' class='genStringsNumBox'></p></div>");
-		document.getElementById('autoDoneMessage').style.display = 'none';
-	});
-
-	// show/hide generated terminal strings
-	document.getElementById('gen-strings-switch').addEventListener('click', function(){
-		if (document.getElementById('genStringsArea').style.display === 'none' && document.getElementById('gen-strings-switch').checked){
-			document.getElementById('genStringsArea').style.display = 'block';
-			document.getElementById('strings-switch-text').innerHTML = 'Hide generated terminals strings';
-		}
-		else{
-			document.getElementById('genStringsArea').style.display = 'none';
-			document.getElementById('strings-switch-text').innerHTML = 'Show generated terminals strings';
-		}
-	});
-
-	// done button for generate terminal strings
-	document.getElementById('genStringsDoneButton').addEventListener('click', function(){
-		deleteThickLine();
-		genTerminalStrings();
-		document.getElementById('genStringsArea').style.display = 'block';
-		document.getElementById('gen-strings-switch').checked = true;
-		document.getElementById('strings-switch-text').innerHTML = 'Hide generated terminals strings';
-	});
-
-	var genStringsList;
-
-	// generate and display terminal strings
-	function genTerminalStrings() {
-		document.getElementById('genStringsBox').innerHTML = "";
-
-		var length = spotForm.inputToGenAuto.length;
-		if(length === undefined) {
-			length = 1;
-		}
-		var inputString = spotForm.inputToGenAuto.value;
-		var fixedStringList = [];
-		genStringsList = undefined;
-
-		for(var i=0; i<length; i++){
-			if(length > 1) {
-				inputString = spotForm.inputToGenAuto[i].value;
-			}
-			if(inputString !== "") {
-				fixedStringList.push(inputString);
-			}
-		}
-		if(fixedStringList.length > 0) {
-			displayStringsTable(fixedStringList);
-			genStringsList = fixedStringList;
-		}
-
-		var length = spotForm.genStringsInput.length;
-		if(length === undefined) {
-			length = 1;
-		}
-		var inputList = spotForm.genStringsInput.value;
-		var min = spotForm.genStringsMin.value;
-		var max = spotForm.genStringsMax.value;
-
-		for(var i=0; i<length; i++){
-			if(length > 1) {
-				inputList = spotForm.genStringsInput[i].value;
-				min = spotForm.genStringsMin[i].value;
-				max = spotForm.genStringsMax[i].value;
-			}
-
-			if(inputList !== "") {
-				inputList = inputList.trim().split(' ');
-				var currGenStringsList = generateTerminalStrings(inputList, min, max)
-				displayStringsTable(currGenStringsList);
-
-				if(genStringsList) {
-					genStringsList = genStringsList.concat(currGenStringsList);
-				}
-				else {
-					genStringsList = currGenStringsList;
-				}
-			}
-		}
-		// console.log(genStringsList)
-	}
-
-	function getStringsList() {
-		return genStringsList;
-	}
-
-	// display generated terminal strings in table
-	function displayStringsTable(genStringsList) {
-		var tables = document.getElementsByClassName("string-table");
-		var index = tables.length + 1;
-		var stringsTable = stringToTable(genStringsList, index);
-		document.getElementById('genStringsBox').innerHTML += stringsTable;
-		addThickLine(genStringsList, index);
-	}
-
-	// create table from generated terminal strings list
-	function stringToTable(genStringsList, index) {
-		var htmlChunks = ['<table class="auto-table string-table" id="string-table-' + index + '"><tbody>'];
-		var i = 1;
-		for(var s in genStringsList) {
-			var string = genStringsList[s];
-			htmlChunks.push('<tr>');
-			htmlChunks.push('<td>' + i + "." + '</td>');
-			htmlChunks.push('<td>' + string + '</td>');
-			htmlChunks.push('</tr>');
-			i++;
-		}
-		htmlChunks.push('</tbody></table>');
-		return htmlChunks.join('');
-	}
-
-	// add thicker line between generated strings of different lengths
-	function addThickLine(genStringsList, index) {
-		var sheet = document.styleSheets[document.styleSheets.length - 1];
-		for(var i = 0; i < genStringsList.length - 1; i++) {
-			var currString = genStringsList[i].split(' ');
-			var nextString = genStringsList[i + 1].split(' ');
-			if(currString.length < nextString.length) {
-				var row = i + 1;
-				sheet.addRule('#string-table-' + index + ' tbody > :nth-child(' + row + ')', 'border-bottom: 3px solid black;', 0);
-			}
-		}
-	}
-
-	// remove thicker line between generated strings of different lengths before regenerating strings
-	function deleteThickLine() {
-		var sheet = document.styleSheets[document.styleSheets.length - 1];
-		var rules = 0;
-		for(var i = 0; i < sheet.cssRules.length; i++) {
-			if(sheet.cssRules[i].cssText.includes('#string-table')) {
-				rules++;
-			}
-		}
-		for(var i = 0; i < rules; i++) {
-			sheet.deleteRule(0);
-		}
-	}
-
-	// For testing only
-	/*
-	new UTree({
-		id: "CP1",
-		cat: "cp",
-		children: [
-			{id: "a", cat: "x0"},
-			{id: "n", cat: "n", children: [
-				{id: "b", cat: "x0"},
-				{id: "c", cat: "x0"},
-			]},
-			{id: "d", cat: "x0"}
-		]
-	});
-	refreshHtmlTree();
-	document.getElementById('treeUIinner').style.display = 'block';
-	*/
-	function parseCats(node){
-		var cats = node['cat'].split(',');
-		if (cats.length > 1){
-			node['cat'] = cats[0];
-		}
-		// add the rest of the list as attributes
-		for (var cat of cats.slice(1)){
-			// remove non-alphanumeric characters, underscores
-			// replace capital letters with lowercase
-			att = cat.trim().replace(/\W/g, '');
-			if (att === ""){
-				continue;
-			}
-			//console.log(att)
-			node[att] = true;
-			/*
-			if (cat.indexOf('silentHead') != -1){
-				node['silentHead'] = true;
-			}
-			if (cat.indexOf('func') != -1){
-				node['func'] = true;
-			}
-			if (cat.indexOf('foc') != -1){
-				node['foc'] = true;
-			}*/
-
-		}
-		var children = node['children'];
-		if (children != undefined){
-			for (var child of children){
-				parseCats(child);
-			}
-		}
-	}
-	//Look at the html tree and turn it into a JSON tree. Put the JSON in the following textarea.
-	document.getElementById('htmlToJsonTreeButton').addEventListener('click', function(){
-		sTree = JSON.stringify(Object.values(treeUIsTreeMap).map(function(tree) {
-
-			// console.log(JSON.parse(tree.toJSON()));
-			// console.log(JSON.parse(tree.toJSON())['cat']);
-			var checkTree = JSON.parse(tree.toJSON());
-			parseCats(checkTree);
-			return (checkTree); // bit of a hack to get around replacer not being called recursively
-		}), null, 4);
-
-		if(sTree.includes('-')) {
-			displayError('Your trees were not added to the analysis because there are hyphens in category or id names in the tree builder. Please refer to the instructions in the tree builder info section.');
-			var info = document.getElementById('treeBuilderInfo');
-			info.classList.add('showing');
-		}
-		else {
-			spotForm.sTree.value = sTree
-			document.getElementById('doneMessage').style.display = 'inline-block';
-		}
-
-		spotForm.inputToGen.value = "";
-	});
-
-	document.getElementById('danishJsonTreesButton').addEventListener('click', function() {
-		spotForm.sTree.value = JSON.stringify(danishTrees(), null, 4);
-	});
-
-	treeTableContainer.addEventListener('input', function(e) {
-		var target = e.target;
-		var idPieces = target.id.split('-');
-		//console.log(idPieces);
-		var treeIndex = idPieces[2];
-		var nodeId = idPieces[1];
-		var isCat = idPieces[0] === 'catInput';
-		treeUIsTreeMap[treeIndex].nodeMap[nodeId][isCat ? 'cat' : 'id'] = target.value;
-		document.getElementById('doneMessage').style.display = 'none';
-	});
-
-
-
-	treeTableContainer.addEventListener('click', function(e) {
-		var node = e.target;
-		if (e.target.classList.contains('stemSide') || e.target.classList.contains('inputContainer')) {
-			while (node && !node.classList.contains('treeNode')) {
-				node = node.parentElement;
-			}
-		}
-		if (node.classList.contains('treeNode')) {
-			node.classList.toggle('selected');
-			refreshNodeEditingButtons();
-		}
-	});
-
-	function elementToNode(el) {
-		var idFrags = el.id.split('-');
-		if (idFrags[0] !== 'treeNode') return null;
-		var nodeId = idFrags[1];
-		return treeUIsTreeMap[idFrags[2]].nodeMap[nodeId];
-	}
-
-	function getSelectedNodes() {
-		var elements = treeTableContainer.getElementsByClassName('selected');
-		var nodes = [];
-		for (var i = 0; i < elements.length; i++) {
-			var node = elementToNode(elements[i]);
-			if (node) {
-				nodes.push(node);
-			}
-		}
-		return nodes;
-	}
-
-	document.getElementById('treeUImakeParent').addEventListener('click', function() {
-		var nodes = getSelectedNodes();
-		try {
-			treeUIsTreeMap[nodes[0].m.treeIndex].addParent(nodes);
-			refreshHtmlTree();
-		} catch (err) {
-			displayError('Unable to add daughter: ' + err.message, err);
-		}
-		document.getElementById('doneMessage').style.display = 'none';
-	});
-
-	document.getElementById('treeUIdeleteNodes').addEventListener('click', function() {
-		var nodes = getSelectedNodes();
-		if (nodes) {
-			var treeIndex = nodes[0].m.treeIndex;
-			for (var i = 1; i < nodes.length; i++) {
-				if (nodes[i].treeIndex != treeIndex) {
-					displayError('You attempted to delete nodes from multiple trees. Please delete nodes one tree at a time.');
-					return;
-				}
-			}
-		}
-		var tree = treeUIsTreeMap[treeIndex];
-		for (var i = 0; i < nodes.length; i++) {
-			tree.deleteNode(nodes[i]);
-		}
-		refreshHtmlTree(treeIndex);
-		document.getElementById('doneMessage').style.display = 'none';
-	});
-
-	document.getElementById('treeUIclearSelection').addEventListener('click', function() {
-		var elements = treeTableContainer.getElementsByClassName('selected');
-		for (var i = elements.length-1; i >= 0; i--) {
-			elements[i].classList.remove('selected');
-		}
-		refreshNodeEditingButtons();
-	});
-
-	document.body.addEventListener('click', function(event) {
-		var el = event.target;
-		var legend = el.closest('legend');
-		if (legend) {
-			var fieldset = legend.closest('fieldset');
-			if (fieldset) {
-				fieldset.classList.toggle('open');
-				return;
-			}
-		}
-
-
-		if (el.classList.contains('info')) {
-			el.classList.toggle('showing')
-		}
-	});
-
-	document.getElementById("clearAllButton").addEventListener("click", function(){
-		clearAnalysis();
-		document.getElementById('treeUIinner').style.display = 'none';
-		document.getElementById('built-in-dropdown').value = 'select';
-		document.getElementById('fileUpload').value = '';
-		document.getElementById('chooseFilePrompt').style = "font-size: 13px; color: #555";
-		document.getElementById('chooseFile').style = "display: none";
-		document.getElementById('save/load-dialog').innerHTML = '';
-	});
-
-	document.getElementById('spotForm').addEventListener("change", function(){
-		document.getElementById("save/load-dialog").innerHTML = '';
-	});
-
-	var x = document.getElementsByName("autoInputOptions");
-	console.log(x);
-	var i;
-	var noBarLevelsIndex;
-	for (i = 0; i < x.length; i++) {
-		if (x[i].value === "noBarLevels") {
-			noBarLevelsIndex = i;
-			break;
-		}
-	}
-
-	document.getElementsByName('autoInputOptions-recursiveCategory')[2].addEventListener('click', function() {
-		if(document.getElementsByName('autoInputOptions-recursiveCategory')[2].checked == true) {
-			// console.log("xo checked")
-			var x = document.getElementsByName("autoInputOptions")[noBarLevelsIndex];
-			if(x.checked === true) {
-				x.checked = false;
-			}
-			x.disabled = true;
-			var y = document.getElementById('head-req').options;
-			y[1].disabled = true;
-			y[2].disabled = true;
-			y[3].disabled = true;
-			y[4].disabled = true;
-		}
-	});
-
-	document.getElementsByName('autoInputOptions-recursiveCategory')[0].addEventListener('click', function() {
-		if(document.getElementsByName('autoInputOptions-recursiveCategory')[0].checked == true) {
-			// console.log("cp checked")
-			var x = document.getElementsByName("autoInputOptions")[noBarLevelsIndex];
-			x.disabled = false;
-			var y = document.getElementById('head-req').options;
-			y[1].disabled = false;
-			y[2].disabled = false;
-			if(x.checked) {
-				y[3].disabled = false;
-				y[4].disabled = false;
-			}
-			else {
-				y[3].disabled = true;
-				y[4].disabled = true;
-			}
-		}
-	});
-
-	document.getElementsByName('autoInputOptions-recursiveCategory')[1].addEventListener('click', function() {
-		if(document.getElementsByName('autoInputOptions-recursiveCategory')[1].checked == true) {
-			// console.log("xp checked")
-			var x = document.getElementsByName("autoInputOptions")[noBarLevelsIndex];
-			x.disabled = false;
-			var y = document.getElementById('head-req').options;
-			y[1].disabled = false;
-			y[2].disabled = false;
-			if(x.checked) {
-				y[3].disabled = false;
-				y[4].disabled = false;
-			}
-			else {
-				y[3].disabled = true;
-				y[4].disabled = true;
-			}
-		}
-	});
-
-	document.getElementsByName("autoInputOptions")[noBarLevelsIndex].addEventListener('click', function() {
-		var x = document.getElementsByName("autoInputOptions")[noBarLevelsIndex];
-		if(x.checked === false) {
-			var y = document.getElementById('head-req').options;
-			// Heads must be perfectly left-aligned
-			y[1].disabled = false;
-			// Heads must be perfectly right-aligned
-			y[2].disabled = false;
-			// Heads must be on the left edge
-			y[3].disabled = false;
-			// Heads must be on the right edge
-			y[4].disabled = false;
-		}
-		else {
-			var y = document.getElementById('head-req').options;
-			y[1].disabled = false;
-			y[2].disabled = false;
-			y[3].disabled = true;
-			y[4].disabled = true;
-		}
-	});
-
-});
-
-function toneInfoBlock(language){
-	var content = document.getElementById("tonesInfoContent");
-	var japaneseContent = "Tokyo Japanese: the left edge of &phi; is marked with a rising boundary tone (LH), accented words receive an HL on the accented syllable, and H tones that follow a pitch drop (HL) within the maximal &phi; are downstepped (!H). (See: Pierrehumbert and Beckman 1988; Gussenhoven 2004; Ito and Mester 2007) Accents, boundary tones, and downstep in Lekeitio Basque are realized with the same tones as in Tokyo Japanese.";
-	var irishContent = "Conamara Irish (Elfner 2012): The left edge of the non-minimal &phi; is marked with a rising boundary tone (LH), and the right edge of every &phi; is marked with a falling boundary tone (HL).";
-	var format = "font-size: 13px; color: #555; margin-left: 25px; display: table-cell";
-	if (language == "japanese"){
-		if (content.innerHTML == japaneseContent){
-			content.style = "display: none";
-			content.innerHTML = '';
-		}
-		else{
-			content.style = format;
-			content.innerHTML = japaneseContent;
-		}
-	}
-	if (language === "irish"){
-		if (content.innerHTML == irishContent){
-			content.style = "display: none";
-			content.innerHTML = '';
-		}
-		else {
-			content.style = format;
-			content.innerHTML = irishContent;
-		}
-	}
-}
-
-//downloads an element to the user's computer. Originally defined up by saveTextAs()
-function saveAs(blob, name) {
-	var a = document.createElement("a");
-	a.display = "none";
-	a.href = URL.createObjectURL(blob);
-	a.download = name;
-	document.body.appendChild(a);
-	a.click();
-	document.body.removeChild(a);
-}
-
-function clearTableau() {
-	document.getElementById('results-container').innerHTML = "";
-	document.getElementById('results-container').className = "";
-}
-
-function showMore(constraintType) {
-	var x = document.getElementById(constraintType);
-	var showMore = constraintType + "Show";
-	var y = document.getElementById(showMore);
-
-  if (x.style.display === "block") {
-    x.style.display = "none";
-		y.innerHTML = "Show more...";
-  } else {
-    x.style.display = "block";
-		y.innerHTML = "Show less...";
-  }
-}
-
-function closeButton() {
-	var close = document.getElementsByClassName("closebtn");
-	var i;
-
-	for (i = 0; i < close.length; i++) {
-		close[i].onclick = function() {
-			var div = this.parentElement;
-			div.style.opacity = "0";
-			setTimeout(function() {
-				div.style.display = "none";
-			}, 600);
-		}
-	}
-}
-
-function displayError(errorMsg, error) {
-	if(error !== undefined) {
-		console.error(error);
-	}
-	else {
-		console.error("Error: " + errorMsg);
-	}
-
-	var spotForm = document.getElementById('spotForm');
-	if (!spotForm) {
-		alert("Error: " + errorMsg);
-		return;
-	}
-
-	var div = document.getElementById("error");
-	div.children[2].innerHTML = errorMsg;
-	div.style.display = "block";
-	div.style.opacity = "100";
-	closeButton();
-}
-
-function displayWarning(warnMsg) {
-	console.warn("Warning: " + warnMsg);
-
-	var spotForm = document.getElementById('spotForm');
-	if (!spotForm) {
-		alert("Warning: " + warnMsg);
-		return;
-	}
-
-	var div = document.getElementById("warning");
-	div.children[2].innerHTML = warnMsg;
-	div.style.display = "block";
-	div.style.opacity = "100";
-	closeButton();
-}
-
-function showMaxBranching() {
-	var text = document.getElementById('maxBranchingText');
-	var checkBox = document.getElementById('maxBranchingBox')
-	if(checkBox.checked) {
-		text.style.display = 'inline';
-	}
-	else{
-		text.style.display = 'none';
-	}
-}
-
-function changeInputTabs(from, to) {
-	var fromButton = 	document.getElementById(from);
-	var toButton = document.getElementById(to);
-	// if from === 'inputButton'
-	var show = 	document.getElementById('treeUI');
-	var hide = document.getElementById('inputOptions');
-	if(from === 'goButton') {
-		show = 	document.getElementById('inputOptions');
-		hide = document.getElementById('treeUI');
-	}
-	show.style.display = 'block';
-	toButton.style.backgroundColor = 'white';
-	toButton.style.borderColor = '#3A5370';
-	if(hide.style.display === 'block') {
-		hide.style.display = 'none';
-		fromButton.style.backgroundColor = '#d0d8e0';
-		fromButton.style.borderColor = '#d0d8e0';
-	}
-}
-if (!Element.prototype.matches)
-		Element.prototype.matches = Element.prototype.msMatchesSelector || 
-																Element.prototype.webkitMatchesSelector;
-
-if (!Element.prototype.closest)
-		Element.prototype.closest = function(s) {
-				var el = this;
-				if (!document.documentElement.contains(el)) return null;
-				do {
-						if (el.matches(s)) return el;
-						el = el.parentElement;
-				} while (el !== null); 
-				return null;
-		};/* TWO POSSIBLE PROSODIC HIERARCHY THEORIES */
+logreport.debug.on = false; //set this to true to get logging from match, equalsisters, binarity, makeTableau, and possibly others
+
+function flushLog() {
+    if (resultsContainer) {
+        var fragment = document.createElement('div');
+        fragment.innerHTML = logLines.join('');
+        resultsContainer.appendChild(fragment);
+        logLines = [];
+    } else {
+        console.error('Tried to flush log before window loaded.');
+    }
+}/* TWO POSSIBLE PROSODIC HIERARCHY THEORIES */
 PH_PHI = {
 	// Defines the prosodic hierarchy. Lower index = higher category.
 	pCat : ["u", "i", "phi", "w", "Ft", "syll"],
@@ -7061,11 +8307,11 @@ function nextLower(pCat, cat){
 	var i = pCat.indexOf(cat);
 	if (i < 0){
 		var errMsg = cat + ' is not a prosodic category in the currently defined prosodic hierarchy, '+pCat;
-		displayError(errMsg);
+		//displayError(errMsg);
 		throw new Error(errMsg);
 	}
 	else if(i===pCat.length-1){
-		displayError(cat + ' is the lowest category defined in the prosodic hierarchy; returning category '+cat);
+		console.warn(cat + ' is the lowest category defined in the prosodic hierarchy; returning category '+cat);
 		return cat;
 	}
 	return pCat[i+1];
@@ -7205,119 +8451,7 @@ function checkProsodicHierarchy(pCat, categoryPairings){
 		}
 	}
 	return ret;
-}
-var lastSegmentId = 0, nextSegmentToReveal = 0;
-
-
-var logLines = [];
-function logreport(line){
-    logLines.push(['<span class="report-line segment-', lastSegmentId, (lastSegmentId >= nextSegmentToReveal) ? ' segment-hidden' : '', '">', line, '<br></span>'].join(''));
-    flushLog();
-}
-logreport.debug = function() {
-    if (logreport.debug.on)
-        return logreport.call(this, Array.prototype.slice.call(arguments));
-}
-logreport.debug.on = true;
-
-var resultsContainer;
-function flushLog() {
-    if (resultsContainer) {
-        var fragment = document.createElement('div');
-        fragment.innerHTML = logLines.join('');
-        resultsContainer.appendChild(fragment);
-        logLines = [];
-    } else {
-        console.error('Tried to flush log before window loaded.');
-    }
-}
-
-function writeTableau(tableauContent) {
-    if (resultsContainer) {
-        var tableauContainer = document.createElement('div');
-
-        tableauContainer.innerHTML =  '<h2 style="margin-bottom: 5px">Tableau</h2>';	
-
-        var textareaNote = document.createElement('strong');
-        textareaNote.innerHTML = 'For copying and pasting into OTWorkplace: ';
-        tableauContainer.appendChild(textareaNote);
-
-        var textarea = document.createElement('textarea');
-        textarea.className = 'tableau-textarea';
-        textarea.value = tableauToCsv(tableauContent, '\t');
-        textarea.readOnly = true;
-        tableauContainer.appendChild(textarea);
-		tableauContainer.appendChild(document.createElement('p'));
-        tableauContainer.className += ' segment-' + lastSegmentId;
-        if (lastSegmentId >= nextSegmentToReveal)
-            tableauContainer.className += ' segment-hidden';
-        onRevealSegment[lastSegmentId] = function() {
-            textarea.focus();
-            textarea.select();
-        }
-
-        var htmlTableauContainer = document.createElement('div');
-        htmlTableauContainer.innerHTML = tableauToHtml(tableauContent);
-        tableauContainer.appendChild(htmlTableauContainer);	
-
-        resultsContainer.appendChild(tableauContainer);
-
-    } else {
-        console.error('Tried to write tableau before window loaded.');
-    }
-}
-
-window.addEventListener('load', function(){
-    resultsContainer = document.getElementById('results-container');
-    if(typeof runDemo === 'function')
-        runDemo();
-});
-
-
-var onRevealSegment = {};
-
-function revealNextSegment() {
-    if (nextSegmentToReveal > lastSegmentId)
-        return;
-    var elements = document.getElementsByClassName('segment-' + nextSegmentToReveal);
-    for (var i = 0; i < elements.length; i++)
-        elements[i].className = elements[i].className.replace('segment-hidden', '');
-
-    if (onRevealSegment[nextSegmentToReveal])
-        onRevealSegment[nextSegmentToReveal]();
-
-    // window.scrollTo(0, document.body.scrollHeight); //TODO: scroll to top of last segment, not bottom
-
-    nextSegmentToReveal++;
-}
-
-document.addEventListener('keyup', function(event) {
-    if (event.keyCode === 32)
-        revealNextSegment();
-});
-
-
-//Given a string that is the name of a (global) object, returns the object itself.
-//Given an object, returns that object.
-function globalNameOrDirect(nameOrObject) {
-    if (!window.disableGlobalNameOrDirect && typeof nameOrObject === 'string') {
-		if (!window.hasOwnProperty(nameOrObject)) {
-			console.error('globalNameOrDirect error: ' + nameOrObject + ' is not defined in the global namespace')
-		}
-    	return window[nameOrObject];
-    } else {
-		return nameOrObject;
-	}
-}
-
-function runConstraint(constraint, sname, pname, cat, expectedViolations) {
-    var pTree = globalNameOrDirect(pname);
-    logreport(['<span class="main-report-line">Running ', constraint, '(', (cat || ''), ') on (', sname, ', ', parenthesizeTree(pTree), ')', (expectedViolations == null) ? '' : [' - Expected Violations: <span class="expected-violation-count">', expectedViolations, '</span>'].join(''), '</span>'].join(''));
-    var violationCount = globalNameOrDirect(constraint)(globalNameOrDirect(sname), pTree, cat);
-    logreport(['<span class="main-report-line" style="background-color: white">Actual Violations: <span class="actual-violation-count">', violationCount, '</span></span><br/><br/>'].join(''));
-    return violationCount;
-}
-function x0Sisters(sTree, cat){
+}function x0Sisters(sTree, cat){
 	var x0SistersFound = false;
     if(sTree.children && sTree.children.length){
         var numX0 = 0;
@@ -7487,14 +8621,19 @@ function containsAdjunct(sTree) {
 	return adjunctFound;
 }
 
-// Produces an array of arrays representing a tableau
-// Options: GEN options and options for parenthesize trees
-// trimStree option uses the trimmed version of the sTree
-// showHeads: marks and shows the heads of Japanese compound words
-	// in the future, this might get a string value specifying a language other than Japanese
-// ph: prosodic hierarchy object with elements as follows:
-// 	.pCat: custom pCat list to be passed to Gen
-// 	.categoryPairings: custom category pairings to be passed to constraints
+/** Produces an array of arrays representing a tableau
+ * Options: GEN options and options for parenthesize trees
+ * - trimStree option uses the trimmed version of the sTree
+ * - showHeads: for marking and showing heads of prosodic constituents
+ * 	If showHeads=== 'right' or 'left', mark heads of all prosodic 
+ * 	constituents, using the function markHeads(), defined in 
+ *  constraints/recursiveCatEvals.js (this is not a good location -- should move it).
+ * 	Otherwise, just pass showHeads along to parenthesizeTree() so that heads get marked with * in the bracket notation.
+ * 
+ * - ph: prosodic hierarchy object with elements as follows:
+ * 		.pCat: custom pCat list to be passed to Gen
+ * 		.categoryPairings: custom category pairings to be passed to constraints  
+*/ 
 function makeTableau(candidateSet, constraintSet, options){
 	//all options passed to makeTableau are passed into parenthesizeTree, so make
 	//sure your options in dependent functions have unique names from other funcs
@@ -7537,6 +8676,10 @@ function makeTableau(candidateSet, constraintSet, options){
 					}
 					optionString += '-'+temp;
 				}
+				//For constraints that involve head marking, if "side" is defined as an option then take the value "left" or "right" and append it to the constraint name.
+				if(optionProperties[j]=="side"){
+					optionString += '-'+optionObj[optionProperties[j]];
+				}
 			}
 		}
 		var cat = conParts[1] ? '('+conParts[1]+')' : ''
@@ -7545,7 +8688,7 @@ function makeTableau(candidateSet, constraintSet, options){
 	}
 
 	if(options.trimStree){
-		header[0] = header[0].concat(' trimmed: ', parenthesizeTree(trimRedundantNodes(sTreeObject)));
+		header[0] = header[0].concat(' trimmed: ', parenthesizeTree(removeSpecifiedNodes(sTreeObject, 'silent')));
 	}
 
 	tableau.push(header);
@@ -7557,7 +8700,11 @@ function makeTableau(candidateSet, constraintSet, options){
 
 	for(var i = 1; i <= numCand; i++){
 		var candidate = candidateSet[numCand-i];
-		if(options.showHeads){candidate[1] = markHeads(candidate[1], options.showHeads);}
+		let heads = options.showHeads;
+		if(heads === 'right' || heads === 'left')
+		{
+			candidate[1] = markHeads(candidate[1], options.showHeads);
+		}
 		var ptreeStr = options.inputTypeString ? candidate[1] : parenthesizeTree(globalNameOrDirect(candidate[1]), options);
 		var tableauRow = [ptreeStr];
 		// the last element is the getter function that retrieves the category pairings received from GEN in candidategenerator.js
@@ -7572,7 +8719,7 @@ function makeTableau(candidateSet, constraintSet, options){
 			// category constraints, and a category argument was provided, 
 			// then check if the category argument is in pCat or sCat.
 			if(catExceptionConstraints.indexOf(constraint)<0){
-				if(cat && !pCat.includes(cat) && !sCat.includes(cat)){
+				if(cat && !pCat.includes(cat) && !sCat.includes(cat) && cat!="any"){
 					console.log(pCat);
 					var errorMsg = "Category argument " + cat + " is not a valid category with the current settings.\nCurrently valid prosodic categories: " + JSON.stringify(pCat) + "\nValid syntactic categories: " + JSON.stringify(sCat);
 					displayError(errorMsg);
@@ -7586,7 +8733,7 @@ function makeTableau(candidateSet, constraintSet, options){
 			//var numViolations = runConstraint(constraintAndCat[0], candidate[0], candidate[1], constraintAndCat[1]); ++lastSegmentId; // show log of each constraint run
 			var oldDebugOn = logreport.debug.on;
 			logreport.debug.on = false;
-			trimmedTree = options.trimStree ? trimRedundantNodes(getCandidate(candidate[0])) : getCandidate(candidate[0]);
+			trimmedTree = options.trimStree ? removeSpecifiedNodes(getCandidate(candidate[0]), 'silent') : getCandidate(candidate[0]);
 			//if options.catsMatch --> add it to myConOptions
 
 			//options for this constraint:
@@ -7664,8 +8811,21 @@ var categoryBrackets = {
 	"w": ["(w ", ")"],
 	"clitic": ["",""],
 	"syll": ["",""],
-	"Ft": ["", ""],
+	"Ft": ["(F ", ")"],
 	"u": ["{u ", "}"]
+};
+
+var subWordBrackets = {
+	"i": "{}",
+	"cp": "{}",
+	"xp": "[]",
+	"phi": "()",
+	"x0": ["[x0 ","]"],
+	"clitic": ["",""],
+	"u": ["{u ", "}"],
+	"w": ["[","]"],
+	"Ft": ["(",")"],
+	"syll": ["",""]
 };
 
 /* Function that takes a [default=prosodic] tree and returns a string version where phi boundaries are marked with '(' ')'
@@ -7683,7 +8843,7 @@ function parenthesizeTree(tree, options){
 	var showNewCats = options.showNewCats || true;
 	var invisCats = options.invisibleCategories || [];
 	var showTones = options.showTones || false;
-	var parens = options.parens || Object.assign({}, categoryBrackets);
+	var parens = options.parens || Object.assign({}, (options.subword)? subWordBrackets : categoryBrackets);
 
 	if(options.showTones){
 		tree = window[options.showTones](tree);
@@ -7866,26 +9026,30 @@ function trimFunctionalTerminals(inputTree){
 }
 
 //function to trim non-x0 terminals
-function trimDeadEndNodes(node){
-	if(node.children && node.children.length){
-		var i = 0; //indexing variable
-		while(i<node.children.length){ //iterate over children
-			var child = node.children[i];
-			//if child is a syntactic terminal that is not an x0, get rid of it
-			if(!(child.children && child.children.length) && (child.cat != "x0" && child.cat != "clitic")){
-				node.children.splice(i, 1); //remove child from children array of node
-				if(node.children.length === 0){/*if node doesn't have any children,
-					node.children shouldn't really be an array anymore */
-					node.children === false;
+function trimDeadEndNodes(inputTree){
+	var treeCopy = copyTree(inputTree);
+	function trimDeadEndInner(node){
+		if(node.children && node.children.length){
+			var i = 0; //indexing variable
+			while(i<node.children.length){ //iterate over children
+				var child = node.children[i];
+				//if child is a syntactic terminal that is not an x0, get rid of it
+				if(!(child.children && child.children.length) && (child.cat != "x0" && child.cat != "clitic")){
+					node.children.splice(i, 1); //remove child from children array of node
+					if(node.children.length === 0){/*if node doesn't have any children,
+						node.children shouldn't really be an array anymore */
+						node.children = false;
+					}
+				}
+				else {
+					trimDeadEndInner(child); //recursive function call
+				 	i++; //iterate indexing variable, we only want to do this if node.children didn't change
 				}
 			}
-			else {
-				trimDeadEndNodes(child); //recursive function call
-			 	i++; //iterate indexing variable, we only want to do this if node.children didn't change
-			}
 		}
+		return node;
 	}
-	return node;
+	return trimDeadEndInner(treeCopy);
 }
 
 /* function to remove redundant nodes. A node is redundant iff it dominates all
@@ -7895,13 +9059,30 @@ function trimDeadEndNodes(node){
 function trimRedundantNodes(inputTree, attribute){
 	/*call the other two tree trimming functions first, because they might create
 	redundant nodes. trimSilentTerminals() might create dead-end terminals,
-	so call that inside of trim deadEndTerminals(). trimSilentTerminals()
+	so also call trimDeadEndNodes(). trimSilentTerminals()
 	creates a copy of the tree*/
 	if(attribute=="silent"){
-		var tree = trimDeadEndNodes(trimSilentTerminals(inputTree));
+		var tree = trimSilentTerminals(inputTree);
 	}else if(attribute=="func"){
-		var tree = trimDeadEndNodes(trimFunctionalTerminals(inputTree));
+		var tree = trimFunctionalTerminals(inputTree);
+	}else{
+		tree = inputTree;
 	}
+	var i = 0;
+
+	//Must call multiple times to make sure all dead-ends are removed. If run only once, a non-x0 terminal will be removed but leave another dead end in its parent.
+	var is_finished = false;
+	while(!is_finished){
+		is_finished = true;
+		tree = trimDeadEndNodes(tree);
+		leaves = getLeaves(tree);
+		for(i = 0; i < leaves.length; i++){
+			if(leaves[i].cat != "x0"){
+				is_finished = false;
+			}
+		}
+	};
+
 	function trimInner(node){
 		if(node.children && node.children.length){
 			for(var i = 0; i<node.children.length; i++){

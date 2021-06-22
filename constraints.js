@@ -759,9 +759,6 @@ function binMaxBranches(s, ptree, cat, n){
 	return vcount;
 }
 
-function ternMaxBranches(s, p, c){
-	return(binMaxBranches(s, p, c, 3));
-}
 
 //A combined binarity constraint (branch-counting)
 function binBranches(stree, ptree, cat, n){
@@ -1061,15 +1058,33 @@ and in that case would need a type-sensitive implementation of getLeaves
 
 /*
 	Head binarity for Japanese compounds
+	Assign a violation for every node of category cat
+	whose head (as marked by markHeads + options.side)
+	is not binary
+
+	Depends on markHeads, defined in main/constraints/recursiveCatEvals.js
+
+	options:
+	- side: 'left' or 'right', defaults to 'right' (for Japanese). Which side are heads marked on?
+	- minimal: true or false, defaults to false. Assess minimal binarity instead of maximal binarity.
 */
 function binMaxHead(s, ptree, cat, options) {
+	function assessBin(a, minimal){
+		if(minimal) return a < 2;
+		else return a > 2;
+	}
+
 	options = options || {};
 	options.side = options.side || 'right';
 	if(typeof options.side !== 'string' || !(options.side === 'right' || options.side == 'left')){
 		console.warn('The option "side" for binMaxHead must be "left" or "right" (default)');
 		options.side = right;
 	}
-	markHeads(ptree, options.side);
+	//Only run markheads if mytree hasn't been marked for heads
+	if (ptree.headsMarked !== options.side){
+		markHeads(ptree, options.side);
+	}
+	
 	var vcount = 0;
 
 	if(ptree.children && ptree.children.length){
@@ -1077,14 +1092,15 @@ function binMaxHead(s, ptree, cat, options) {
 			for(var i = 0; i<ptree.children.length; i++){
 				if(ptree.children[i].head === true) {
 					if(ptree.children[i].children){
-						if(ptree.children[i].children.length > 2) {
+						var numChil = ptree.children[i].children.length;
+						if(assessBin(numChil, options.minimal)) {
 							vcount++;
 						}
 					}
 					else {
 						var id = ptree.children[i].id.split('_');
 						id = id[0];
-						if(id.length > 2) {
+						if(assessBin(id.length, options.minimal)) {
 							vcount++;
 						}
 					}
@@ -1097,7 +1113,27 @@ function binMaxHead(s, ptree, cat, options) {
 	}
 	return vcount;
 }
-//Modifications:
+
+/** Minimal binarity for heads
+ * Implemented to help with Max Kaplan's Ojibwe analysis 
+ * (for the iota level)
+ */
+function binMinHead(s, p, cat, options){
+	options = options || {};
+	options.minimal = true;
+	if(!options.side) options.side = 'left'; //default to left-headed for Ojibwe reasons
+	return binMaxHead(s, p, cat, options);
+}
+
+/* Ternarity constraints
+*/
+function ternMaxBranches(s, p, c){
+	return(binMaxBranches(s, p, c, 3));
+}
+
+function ternMaxLeaves(s, p, c){
+	return(binMaxLeaves(s, p, c, 3));
+}//Modifications:
 //8-28-2020 Edward Shingler created functions ["notMutualCommand","dominates","pairExists","areAdjacent"] and constraints ["ccPhi","antiCCPhi","mutualSplit"]
 //These constraints take an boolean argument called "adjacent" defaulted to false. If true, then each function only looks at adjacent words that would cause violations.
 
@@ -2141,7 +2177,7 @@ function sameIds(a1, a2){
 }
 
 
-function matchPS(sParent, pParent, pCat, options)
+function matchPS(sTree, pParent, pCat, options)
 //Assign a violation for every prosodic node of type pCat in pParent that doesn't have a corresponding syntactic node in sTree,
 //where "corresponding" is defined as: dominates all and only the same terminals, and has the corresponding syntactic category
 //Assumes no null terminals.
@@ -2149,7 +2185,6 @@ function matchPS(sParent, pParent, pCat, options)
 //is set to true. The same goes for the syntactic trees
 {
 	options = options || {};
-	var sTree = sParent;
 	var flippedOptions = {};
 	flippedOptions.maxSyntax = options.maxProsody || false;
 	flippedOptions.nonMaxSyntax = options.nonMaxProsody || false;
@@ -2321,6 +2356,13 @@ function matchMaxSyntax(sTree, pTree, sCat, options){
 	return matchSP(sTree, pTree, sCat, options);
  }
 
+//Match for any prosodic constituent
+function matchSPAny(sTree, pTree, sCat, options){
+	options = options || {};
+	options.anyPCat = true;
+	return matchSP(sTree, pTree, sCat, options);
+}
+
  //Match all non-minimal syntactic nodes
 function matchNonMinSyntax(sTree, pTree, sCat, options){
 	options = options || {};
@@ -2380,6 +2422,18 @@ function matchMinPS(s, ptree, cat, options) {
 	options.minSyntax = true;
 	options.minProsody = true;
   return matchPS(s, ptree, cat, options);
+}
+
+/** Bidirectional or "symmetrical" Match
+ *  No options because this constraint is for the purpose of simplifying 
+ *  investigations of interactions between well-formedness constraints.
+ *  Options can be added later.
+ **/
+function matchSPPS(s, ptree, scat){
+	var spVcount = matchSP(s, ptree, scat);
+	var pcat = categoryPairings[scat];
+	var psVcount = matchPS(s, ptree, pcat);
+	return spVcount + psVcount;
 }function noShift(stree, ptree, cat) {
   // get list of terminals using helper function
   var sorder = getTerminals(stree);
@@ -2822,6 +2876,7 @@ function markHeadsJapanese(mytree){
  * 	side: 'left' or 'right' (default)
  */
 function markHeads(mytree, side){
+
 	if(typeof side !== 'string' || !(side === 'right' || side === 'left')){
 		console.warn('"side" argument of markHeads() must be "right" or "left", default to "right"');
 		side = 'right';
@@ -2843,6 +2898,8 @@ function markHeads(mytree, side){
 			}
 		}
 	}
+	//Indicate that this tree has been marked for heads, and on which side
+	mytree.headsMarked = side;
 	return mytree;
 
 	function markHeadsInner(child, previousChildren, side){
@@ -2882,7 +2939,9 @@ function starCat(s, p, c){
 	return occurances;
 }/* Assign a violation for every node whose leftmost daughter constituent is of type k
 *  and is lower in the prosodic hierarchy than its sister constituent immediately to its right: *(Kn Kn-1)
-*  Elfner's StrongStart.
+*  Elfner's StrongStart(k).
+*
+*  If k is absent, use any category (Selkirk's StrongStart which Elfner also uses).
 */
 
 function strongStart_Elfner(s, ptree, k){
@@ -2902,7 +2961,9 @@ function strongStart_Elfner(s, ptree, k){
 		//console.log(sisterCat);
 		//console.log(pCat.isLower(leftmostCat, sisterCat));
 
-		if(pCat.isLower(leftmostCat, sisterCat))
+		// If not indexed to any particular category k, then we don't care what leftmostCat is
+		// Otherwise we want leftmostCat to equal k.
+		if((!k || leftmostCat===k) && (pCat.isLower(leftmostCat, sisterCat)))
 		{
 			vcount++;
 			//console.log("strongStart_Elfner violation: "+ptree.children[0]+" "+ptree.children[1]);
@@ -2913,6 +2974,132 @@ function strongStart_Elfner(s, ptree, k){
 	for(var i=0; i<ptree.children.length; i++){
 		child = ptree.children[i];
 		vcount += strongStart_Elfner(s, child, k);
+	}
+	
+	return vcount;
+}
+
+/* Hsu 2016, p. 195
+	"STRONGSTART(k/p)
+	Assign a violation mark for every prosodic constituent whose leftmost daughter
+	constituent is of type k and is lower in the Prosodic Hierarchy than its sister
+	constituent immediately to the right, where k is at the left edge of a prosodic
+	constituent p.
+
+	The relevant notion of 'left edge' is defined as follows:
+	(57) A prosodic constituent k is at the left edge of prosodic constituent p iff.
+	a. p dominates k, and
+	b. no prosodic constituent that both dominates k and is dominated by p has a
+	leftmost daughter constituent that does not contain k."
+
+	Note that the violations are for each parent with immediate daughter k at its edge (i.e., for every k), not for every p with k at its left edge at any depth.
+*/
+
+function strongStart_Hsu(s, ptree, k, p, node){
+
+	/* Since we cannot search up the tree, the original tree must be retained 
+	to determine whether a node of cat p dominates a node of cat k. We keep a 
+	reference to the root ptree, while node refers to the object that is 
+	currently being assessed as a weakly-starting parent of a node with category k.
+	*/
+	node = node || ptree;
+
+	//base case: node is a leaf or only has one child
+	if(!node.children){
+		return 0;
+	}
+	
+	var vcount = 0;
+	
+	// if node.children[0].cat === k and has a sibling, then compare it with its sibling as well as for domination by a node of cat p along the left edge.
+	if(node.children.length>1 && node.children[0].cat === k){		
+		if((pCat.isLower(node.children[0].cat, node.children[1].cat)) && catDomsIdAtLeftEdge(ptree, p, node.id)){ // searches tree for node of cat p dominating this node of cat k
+			vcount++;
+		}
+	}
+	
+	// Recurse
+	for(var i=0; i<node.children.length; i++){
+		child = node.children[i];
+		vcount += strongStart_Hsu(s, ptree, k, p, child);
+	}
+	
+	return vcount;
+}
+
+//Wrapper functions for strongStart_Hsu to deal with the problem of having two separate category arguments
+function strongStart_Hsu_phi(s, ptree, k)
+{
+	return strongStart_Hsu(s, ptree, k,'phi');
+}
+
+function strongStart_Hsu_iota(s, ptree, k)
+{
+	return strongStart_Hsu(s, ptree, k, 'i');
+}
+
+//can't be parameterized to a category at present -- k is ignored
+function strongEndLocal(s, ptree, k){
+
+	//base case: ptree is a leaf or only has one child
+	if(!ptree.children){
+		return 0;
+	}
+	
+	var vcount = 0;
+	
+	if(ptree.children.length>1){		
+		var rightmostCat = ptree.children[ptree.children.length-1].cat;
+		var sisterCat = ptree.children[ptree.children.length-2].cat;
+		
+		//console.log(leftmostCat);
+		//console.log(sisterCat);
+		//console.log(pCat.isLower(leftmostCat, sisterCat));
+
+		if(pCat.isLower(rightmostCat, sisterCat))
+		{
+			vcount++;
+			//console.log("strongEndLocal violation: "+ptree.children[0]+" "+ptree.children[1]);
+		}
+	}
+	
+	// Recurse
+	for(var i=0; i<ptree.children.length; i++){
+		child = ptree.children[i];
+		vcount += strongEndLocal(s, child, k);
+	}
+	
+	return vcount;
+}
+
+/* Constraint from Sabbagh (2014, p. 62) "Word Order and Prosodic-Structure Constraints in Tagalog":
+
+Weak Start: *(π₁π₂..., where π₁ > π₂
+A prosodic constituent begins with a leftmost daughter that is no higher on the prosodic hierarchy than the constituent that immediately follows.
+*/
+function weakStartLocal(s, ptree, k){
+
+	//base case: ptree is a leaf or only has one child
+	if(!ptree.children){
+		return 0;
+	}
+	
+	var vcount = 0;
+	
+	if(ptree.children.length>1){		
+		var leftmostCat = ptree.children[0].cat;
+		var sisterCat = ptree.children[1].cat;
+
+		if(pCat.isHigher(leftmostCat, sisterCat))
+		{
+			vcount++;
+		}
+	}
+	
+	// Recurse
+	for(var i=0; i<ptree.children.length; i++){
+		child = ptree.children[i];
+		vcount += weakStartLocal(s, child, k);
 	}
 	
 	return vcount;
@@ -3014,7 +3201,8 @@ function strongStartClitic(s, ptree, cat){
 	
 	var vcount = 0;
 	
-	if(pCat.isHigher(ptree.cat, 'w') && ptree.children.length>1){		
+	//Corrected 2/5/21: this was checking that ptree.children.length>1, which is not correct since strongStartClitic as defined in BEM doesn't care how many children are present
+	if(pCat.isHigher(ptree.cat, 'w') && ptree.children.length){		
 		var leftmostCat = ptree.children[0].cat;
 
 		if(pCat.isLower(leftmostCat, 'w'))
@@ -3031,6 +3219,43 @@ function strongStartClitic(s, ptree, cat){
 	
 	return vcount;
 
+}
+
+/** Category-independent version of strongStartClitic.
+ * Proposed by Jennifer Bellik in SS-ES stringency chapter in AOT book
+ * as a generalized version of the hyperlocally-scoped SS constraint
+ * in Bennett, Elfner, & McCloskey 2016. May also be conceived of as
+ * Exhaustivity enforced at the left edge only.
+ * 
+ * "Assign a violation for every node of category k whose first daughter
+ * is of category < k-1." (Bellik 2021)
+ * 
+*/
+function ssHypLoc(stree, ptree, cat){
+	var vcount = 0;
+
+	//base case: ptree is a leaf or only has one child
+	if(!ptree.children){
+		return vcount;
+	}
+	
+	if(ptree.children.length){		
+		var parentCat = ptree.cat;
+		var firstChildCat = ptree.children[0].cat;
+
+		if(pCat.isLower(firstChildCat, pCat.nextLower(parentCat)))
+		{
+			vcount++;
+		}
+	}
+	
+	// Recurse
+	for(var i=0; i<ptree.children.length; i++){
+		child = ptree.children[i];
+		vcount += ssHypLoc(stree, child, cat);
+	}
+	//Code for going through the tree and evaluate for some structure goes here
+	return vcount;
 }
 
 /* Strong start (cat init)
@@ -3096,6 +3321,57 @@ function strongStartInit(stree, ptree, cat){
 }
 
 
+/** A helper function for strongStart_Hsu() that determines 
+ * whether a tree contains a node of category cat that has 
+ * a node with id "id" at its left edge at any depth. 
+ * 
+ * Arguments:
+ * - tree: a prosodic or syntactic tree to search through
+ * - cat: a string representing a node category
+ * - id: a string representing the id of a node to look for at a left edge
+ * 
+ * Returns true if tree contains a node of category cat which has, 
+ * at its left edge, a node with the specified id. 
+ * Otherwise returns false.
+ * 
+ * Depends on hasIdAtLeftEdge()
+ */
+function catDomsIdAtLeftEdge(tree, cat, id){
+	if(!tree.children){
+		return false;
+	}
+	if(tree.cat === cat && (hasIdAtLeftEdge(tree, id) || tree.id === id)){
+		return true;
+	}
+	else {
+		for(var i=0; i<tree.children.length; i++){
+			if(catDomsIdAtLeftEdge(tree.children[i], cat, id)){
+				return true;
+			}
+		}
+	}
+}
+
+/**A helper function for catDomsIdAtLeftEdge(). 
+ * 
+ * Arguments: 
+ * - tree: a prosodic or syntactic tree to search through
+ * - id: a string representing the id of a node to look for
+ * 
+ * Returns true if the tree has a node with the specified id at its left edge at any depth.
+ * Otherwise, returns false.
+*/
+function hasIdAtLeftEdge(tree, id){
+	if(!tree.children){
+		return false;
+	}
+	if(tree.children[0].id === id){
+		return true;
+	}
+	else {
+		return hasIdAtLeftEdge(tree.children[0], id);
+	}
+}
 /*KEY FOR REPRESENTATIONS
 	
 	<	left of stressed syllable

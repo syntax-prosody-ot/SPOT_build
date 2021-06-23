@@ -4013,511 +4013,7 @@ function annotateTonesTest(){
 
 }
 
-annotateTonesTest();// Example 1:
-// {id: 'rootw', cat: 'w', children:
-// [ {id: 'nonhead', cat: 'w', size: 3},
-// {id: 'head', cat: 'w', head: true, size: 2}
-// ]
-// }
-// --> no violation
-
-var x = {
-        "id": "rootw",
-        "cat": "w",
-        "children": [
-            {
-                "cat": "w",
-                "id": "nonhead",
-                "children": [
-                    {
-                        "id": "a",
-                        "cat": "w"
-                    },
-                    {
-                        "id": "b",
-                        "cat": "w"
-                    },
-                    {
-                        "id": "c",
-                        "cat": "w"
-                    }
-                ]
-            },
-            {
-                "cat": "w",
-                "id": "head",
-                "children": [
-                    {
-                        "id": "c",
-                        "cat": "w",
-                    },
-                    {
-                        "id": "d",
-                        "cat": "w"
-                    }
-                ]
-            }
-        ]
-    }
-
-    var x2 = {
-            "id": "rootw",
-            "cat": "w",
-            "children": [
-                {
-                    "cat": "w",
-                    "id": "nonhead",
-                    "children": [
-                        {
-                            "id": "a",
-                            "cat": "w"
-                        },
-                        {
-                            "id": "b",
-                            "cat": "w"
-                        },
-                        {
-                            "id": "c",
-                            "cat": "w"
-                        }
-                    ]
-                },
-                {
-                    "cat": "w",
-                    "id": "head",
-                    "children": [
-                        {
-                            "id": "c",
-                            "cat": "w",
-                        },
-                        {
-                            "id": "d",
-                            "cat": "w"
-                        }
-                    ]
-                }
-            ]
-        }
-
-// Example 2:
-// {id: 'rootw', cat: 'w', children:
-// [ {id: 'nonhead', cat: 'w', size: 2},
-// {id: 'head', cat: 'w', head: true, size: 3}
-// ]
-// }
-// --> one violation
-
-var y = {
-        "id": "rootw",
-        "cat": "w",
-        "children": [
-            {
-                "cat": "w",
-                "id": "nonhead",
-                "children": [
-                    {
-                        "id": "a",
-                        "cat": "w"
-                    },
-                    {
-                        "id": "b",
-                        "cat": "w"
-                    }
-                ]
-            },
-            {
-                "cat": "w",
-                "id": "head",
-                "children": [
-                    {
-                        "id": "c",
-                        "cat": "w"
-                    },
-                    {
-                        "id": "d",
-                        "cat": "w"
-                    },
-                    {
-                        "id": "e",
-                        "cat": "w"
-                    },
-                ]
-            }
-        ]
-    }
-
-    var y2 = {
-            "id": "rootw",
-            "cat": "w",
-            "children": [
-                {
-                    "cat": "w",
-                    "id": "nonhead",
-                    "children": [
-                        {
-                            "id": "a",
-                            "cat": "w"
-                        },
-                        {
-                            "id": "b",
-                            "cat": "w"
-                        }
-                    ]
-                },
-                {
-                    "cat": "w",
-                    "id": "head",
-                    "children": [
-                        {
-                            "id": "c",
-                            "cat": "w"
-                        },
-                        {
-                            "id": "d",
-                            "cat": "w"
-                        },
-                        {
-                            "id": "e",
-                            "cat": "w"
-                        },
-                    ]
-                }
-            ]
-        }
-
-// Example 3:
-// {id: 'rootphi', cat: 'phi', children:
-// [ {id: 'nonhead', cat: 'w', size: 2},
-// {id: 'head', cat: 'w', head: true, size: 3}
-// ]
-// }
-// --> no violation when cat = 'w'. (This would incur a violation if cat: 'phi')
-
-var z = {
-        "id": "rootphi",
-        "cat": "phi",
-        "children": [
-            {
-                "cat": "w",
-                "id": "nonhead",
-                "children": [
-                    {
-                        "id": "a",
-                        "cat": "w"
-                    },
-                    {
-                        "id": "b",
-                        "cat": "w"
-                    }
-                ]
-            },
-            {
-                "cat": "w",
-                "id": "head",
-                "children": [
-                    {
-                        "id": "c",
-                        "cat": "w"
-                    },
-                    {
-                        "id": "d",
-                        "cat": "w"
-                    },
-                    {
-                        "id": "e",
-                        "cat": "w"
-                    },
-                ]
-            }
-        ]
-    }
-
-    var z2 = {
-        "id": "rootphi",
-        "cat": "phi",
-        "children": [
-            {
-                "cat": "w",
-                "id": "nonhead",
-                "children": [
-                    {
-                        "id": "a",
-                        "cat": "w"
-                    },
-                    {
-                        "id": "b",
-                        "cat": "w"
-                    }
-                ]
-            },
-            {
-                "cat": "w",
-                "id": "head",
-                "children": [
-                    {
-                        "id": "c",
-                        "cat": "w"
-                    },
-                    {
-                        "id": "d",
-                        "cat": "w"
-                    },
-                    {
-                        "id": "e",
-                        "cat": "w"
-                    },
-                ]
-            }
-        ]
-    }
-
-// Example 4:
-// {id: 'rootw', cat: 'w', children:
-// [ {id: 'nonhead', cat: 'w', size: 2},
-// {id: 'head', cat: 'w', head: true, size: 3}
-// ]
-// }
-// --> one violation
-
-var a = {
-        "id": "rootw",
-        "cat": "w",
-        "children": [
-            {
-                "cat": "w",
-                "id": "nonhead",
-                "children": [
-                    {
-                        "id": "a",
-                        "cat": "w"
-                    },
-                    {
-                        "id": "b",
-                        "cat": "w"
-                    }
-                ]
-            },
-            {
-                "cat": "w",
-                "id": "FFF_1"
-            }
-        ]
-    }
-
-var b = {
-        "id": "rootw",
-        "cat": "w",
-        "children": [
-            {
-                "cat": "w",
-                "id": "FFF_1"
-            },
-            {
-                "cat": "w",
-                "id": "nonhead",
-                "children": [
-                    {
-                        "id": "a",
-                        "cat": "w"
-                    },
-                    {
-                        "id": "b",
-                        "cat": "w"
-                    }
-                ]
-            }     
-        ]
-    }
-
-var xMin = {
-            "id": "rootw",
-            "cat": "w",
-            "children": [
-                {
-                    "cat": "w",
-                    "id": "nonhead",
-                    "children": [
-                        {
-                            "id": "aa",
-                            "cat": "w"
-                        },
-                        {
-                            "id": "b",
-                            "cat": "w"
-                        },
-                        {
-                            "id": "c",
-                            "cat": "w"
-                        }
-                    ]
-                },
-                {
-                    "cat": "w",
-                    "id": "head",
-                    "children": [
-                        {
-                            "id": "cc",
-                            "cat": "w",
-                        },
-                        {
-                            "id": "d",
-                            "cat": "w"
-                        }
-                    ]
-                }
-            ]
-        };
-
-var s = null;
-
-function binMaxHeadTest(){
-  describe("binMaxHeadTest.html", function() {
-      describe('binMaxHead: Head Binarity Constraint for Japanese Compounds. Right head marking.', function() {
-          it('binMaxHead(s, x, w, r),    x =   ' + parenthesizeTree(x, {showHeads:true}) + ' --> Expected Violations: 0', function() {
-              assert.equal(binMaxHead(s, x, 'w'), 0);
-          });
-          it('binMaxHead(s, y, w, r),    y =   ' + parenthesizeTree(y, {showHeads:true}) + ' --> Expected Violations: 1', function() {
-             assert.equal(binMaxHead(s,y,'w'), 1);
-          });
-          it('binMaxHead(s, z, w, r),    z =   ' + parenthesizeTree(z, {showHeads:true}) + ' --> Expected Violations: 0', function() {
-             assert.equal(binMaxHead(s, z, 'w'), 0);
-          });
-          it('binMaxHead(s, z, phi, r),    z =   ' + parenthesizeTree(z, {showHeads:true}) + ' --> Expected Violations: 1', function() {
-             assert.equal(binMaxHead(s, z, 'phi'), 1);
-          });
-          it('binMaxHead(s, a, w, r),    a =   ' + parenthesizeTree(a, {showHeads:true}) + ' --> Expected Violations: 1', function() {
-             assert.equal(binMaxHead(s, a, 'w'), 1);
-          });
-      });
-      describe('binMaxHead: Left head marking', function() {
-          it('binMaxHead(s, x, w, l),    x =   ' + parenthesizeTree(x, {showHeads:true}) + ' --> Expected Violations: 1', function() {
-              assert.equal(binMaxHead(s, x2, 'w', {side: "left"}), 1);
-          });
-          it('binMaxHead(s, y, w, l),    y =   ' + parenthesizeTree(y, {showHeads:true}) + ' --> Expected Violations: 0', function() {
-             assert.equal(binMaxHead(s,y2,'w', {side: "left"}), 0);
-          });
-          it('binMaxHead(s, z, w, l),    z =   ' + parenthesizeTree(z, {showHeads:true}) + ' --> Expected Violations: 0', function() {
-             assert.equal(binMaxHead(s, z2, 'w', {side: "left"}), 0);
-          });
-          it('binMaxHead(s, z, phi, l),    z =   ' + parenthesizeTree(z, {showHeads:true}) + ' --> Expected Violations: 0', function() {
-             assert.equal(binMaxHead(s, z2, 'phi', {side: "left"}), 0);
-          });
-          it('binMaxHead(s, a, w, l),    a =   ' + parenthesizeTree(a, {showHeads:true}) + ' --> Expected Violations: 1', function() {
-             assert.equal(binMaxHead(s, b, 'w', {side: "left"}), 1);
-          });
-      });
-
-      describe('binMaxHead(minimal), heads on left', function(){
-        it('binMinHead(s, {(a)*(b c)}, "i"), one violation', function(){
-            var itree = {
-                cat:'i', 
-                id:'root', 
-                children:[
-                    {cat:'phi', children:[{cat:'w', id:'a'}]},
-                    {cat:'phi', children:[{cat:'w', id:'b'}, {cat:'w', id:'c'}]}
-                ]
-            };
-            assert.equal(binMaxHead(s, itree, 'i', {side:'left', minimal:true}), 1);
-            assert.equal(binMinHead(s, itree, 'i', {side:'left'}), 1);
-        });
-
-        it('binMinHead(s, {(a*)(b* c)}, "phi"), two violations', function(){
-            var itree = {
-                cat:'i', 
-                id:'root', 
-                children:[
-                    {cat:'phi', children:[{cat:'w', id:'a'}]},
-                    {cat:'phi', children:[{cat:'w', id:'b'}, {cat:'w', id:'c'}]}
-                ]
-            };
-            assert.equal(binMaxHead(s, itree, 'i', {side:'left', minimal:true}), 1);
-        });
-
-        it('binMinHead(s, xMin, "w"),    xMin =   ' + parenthesizeTree(markHeads(xMin, 'left'), {showHeads:true}) + ' --> Expected Violations: 0', function() {
-            assert.equal(binMaxHead(s, xMin, 'w', {side:'left', minimal:true}),0);
-        });
-
-        var yMin = {
-                    "id": "rootw",
-                    "cat": "w",
-                    "children": [
-                        {
-                            "cat": "w",
-                            "id": "nonhead",
-                            "children": [
-                                {
-                                    "id": "F",
-                                    "cat": "Ft"
-                                }
-                            ]
-                        },
-                        {
-                            "cat": "w",
-                            "id": "head",
-                            "children": [
-                                {
-                                    "id": "c",
-                                    "cat": "w"
-                                },
-                                {
-                                    "id": "d",
-                                    "cat": "w"
-                                },
-                                {
-                                    "id": "e",
-                                    "cat": "w"
-                                },
-                            ]
-                        }
-                    ]
-                }
-
-        it('binMinHead(s, yMin, "w"),    yMin =   ' + parenthesizeTree(markHeads(yMin, 'left'), {showHeads:true}) + ' --> Expected Violations: 3', function() {
-            assert.equal(binMaxHead(s,yMin,'w', {side:'left', minimal:true}), 3);
-        });
-        it('binMinHead(s, z, "w"),    z =   ' + parenthesizeTree(markHeads(z, 'left'), {showHeads:true}) + ' --> Expected Violations: 2', function() {
-            assert.equal(binMaxHead(s, z, 'w', {side:'left', minimal:true}), 2);
-        });
-        it('binMinHead(s, z, "phi"),    z =   ' + parenthesizeTree(z, {showHeads:true}) + ' --> Expected Violations: 0', function() {
-            assert.equal(binMaxHead(s, z, 'phi', {side:'left', minimal:true}), 0);
-        });
-
-        var bMin = {
-            "id": "rootw",
-            "cat": "w",
-            "children": [
-                {
-                    "cat": "w",
-                    "id": "lefthead",
-                    "children": [
-                        {
-                            "id": "FFF_2",
-                            "cat": "w"
-                        },
-                        {
-                            "id": "b",
-                            "cat": "w"
-                        }
-                    ]
-                },
-                {
-                    "cat": "w",
-                    "id": "FFF_1"
-                }
-            ]
-        };
-
-        it('binMinHead(s, bMin, "w"),    bMin =   ' + parenthesizeTree(bMin, {showHeads:true}) + ' --> Expected Violations: 0', function() {
-            assert.equal(binMaxHead(s, bMin, 'w', {side:'left', minimal:true}), 0);
-            assert.equal(binMinHead(s, bMin, 'w', {side:'left'}), 0);
-        });
-    });
-
-  });
-};
-
-binMaxHeadTest();
-//binMaxPhiMinTest.js
+annotateTonesTest();//binMaxPhiMinTest.js
 
 //Introduce variables for use here and in binMaxPhiMinTest.html
 var s = undefined;
@@ -5056,7 +4552,648 @@ function binarityTest(){
     });
 }
 
-binarityTest();//genTerminalStringsTest.js
+binarityTest();//Initialize category brackets to be used with parenthesizeTree (in case of modifications later on, this test will remain the same)
+var compWordBrackets = {
+    "i": "{}",
+    "cp": "{}",
+    "xp": "[]",
+    "phi": "()",
+    "x0": ["[","]"],
+    "w": ["[", "]"],
+    "clitic": ["",""],
+    "syll": ["",""],
+    "Ft": ["(F ", ")"],
+    "u": ["{u ", "}"]
+};
+
+paren_ops = {parens: compWordBrackets};
+
+//Initialize the options used in compound word Gen versions
+var gen_ops_w_term_unary = {rootCategory: 'phi', recursiveCategory: ['phi','w'], terminalCategory: 'w', noUnary:false};
+var gen_ops_ft_term_unary = {rootCategory: 'phi', recursiveCategory: ['phi','w'], terminalCategory: 'Ft', noUnary:false,};
+var gen_ops_w_term_noUnary = {rootCategory: 'phi', recursiveCategory: ['phi','w'], terminalCategory: 'w', noUnary:true};
+var gen_ops_ft_term_noUnary = {rootCategory: 'phi', recursiveCategory: ['phi','w'], terminalCategory: 'Ft', noUnary:true};
+
+var gen_ops_w_term_headed = {rootCategory: 'i', recursiveCategory: ['phi','w'], terminalCategory: 'w', obeysHeadedness:true};
+var gen_ops_w_term_nonRecursive = {rootCategory: 'i', recursiveCategory: ['phi','w'], terminalCategory: 'w', obeysNonrecursivity:true};
+var gen_ops_w_term_exhaustive = {rootCategory: 'i', recursiveCategory: ['phi','w'], terminalCategory: 'w', obeysExhaustivity:true};
+var gen_ops_w_term_iotaRoot = {rootCategory: 'i', recursiveCategory: ['phi','w'], terminalCategory: 'w'};
+
+//ops
+/*
+
++ headed
++ non-recursive
++ exhaustive
++ iota rooted
+
+*/
+
+
+//Initialize the expected arrays for compound word Gen versions and sort
+var twoWordTerm = ["(a (b))","((a) b)","((a) (b))","(a b)","([a b])"];
+
+var threeWordTerm = ["(((a) (b)) (c))"
+,"(((a) (b)) c)"
+,"(((a) b) (c))"
+,"(((a) b) c)"
+,"(([a b]) (c))"
+,"(([a b]) c)"
+,"((a (b)) (c))"
+,"((a (b)) c)"
+,"((a) ((b) (c)))"
+,"((a) ((b) c))"
+,"((a) ([b c]))"
+,"((a) (b (c)))"
+,"((a) (b) (c))"
+,"((a) (b) c)"
+,"((a) (b c))"
+,"((a) [b c])"
+,"((a) b (c))"
+,"((a) b c)"
+,"((a b) (c))"
+,"((a b) c)"
+,"([[a b] c])"
+,"([a [b c]])"
+,"([a b] (c))"
+,"([a b] c)"
+,"([a b c])"
+,"(a ((b) (c)))"
+,"(a ((b) c))"
+,"(a ([b c]))"
+,"(a (b (c)))"
+,"(a (b) (c))"
+,"(a (b) c)"
+,"(a (b c))"
+,"(a [b c])"
+,"(a b (c))"
+,"(a b c)"];
+
+var twoFtTerm = ["([a.Ft b.Ft])"
+,"([[a.Ft] [b.Ft]])"
+,"([[a.Ft] b.Ft])"
+,"([a.Ft [b.Ft]])"
+,"(a.Ft b.Ft)"
+,"(([a.Ft]) ([b.Ft]))"
+,"(([a.Ft]) (b.Ft))"
+,"(([a.Ft]) [b.Ft])"
+,"(([a.Ft]) b.Ft)"
+,"((a.Ft) ([b.Ft]))"
+,"((a.Ft) (b.Ft))"
+,"((a.Ft) [b.Ft])"
+,"((a.Ft) b.Ft)"
+,"([a.Ft] ([b.Ft]))"
+,"([a.Ft] (b.Ft))"
+,"([a.Ft] [b.Ft])"
+,"([a.Ft] b.Ft)"
+,"(a.Ft ([b.Ft]))"
+,"(a.Ft (b.Ft))"
+,"(a.Ft [b.Ft])"];
+
+//Array collected from enumerateThreeFtTerm function below
+var threeFtTerm = ["((([a.Ft]) ([b.Ft])) ([c.Ft]))","((([a.Ft]) ([b.Ft])) (c.Ft))","((([a.Ft]) ([b.Ft])) [c.Ft])","((([a.Ft]) ([b.Ft])) c.Ft)","((([a.Ft]) (b.Ft)) ([c.Ft]))","((([a.Ft]) (b.Ft)) (c.Ft))","((([a.Ft]) (b.Ft)) [c.Ft])","((([a.Ft]) (b.Ft)) c.Ft)","((([a.Ft]) [b.Ft]) ([c.Ft]))","((([a.Ft]) [b.Ft]) (c.Ft))","((([a.Ft]) [b.Ft]) [c.Ft])","((([a.Ft]) [b.Ft]) c.Ft)","((([a.Ft]) b.Ft) ([c.Ft]))","((([a.Ft]) b.Ft) (c.Ft))","((([a.Ft]) b.Ft) [c.Ft])","((([a.Ft]) b.Ft) c.Ft)","(((a.Ft) ([b.Ft])) ([c.Ft]))","(((a.Ft) ([b.Ft])) (c.Ft))","(((a.Ft) ([b.Ft])) [c.Ft])","(((a.Ft) ([b.Ft])) c.Ft)","(((a.Ft) (b.Ft)) ([c.Ft]))","(((a.Ft) (b.Ft)) (c.Ft))","(((a.Ft) (b.Ft)) [c.Ft])","(((a.Ft) (b.Ft)) c.Ft)","(((a.Ft) [b.Ft]) ([c.Ft]))","(((a.Ft) [b.Ft]) (c.Ft))","(((a.Ft) [b.Ft]) [c.Ft])","(((a.Ft) [b.Ft]) c.Ft)","(((a.Ft) b.Ft) ([c.Ft]))","(((a.Ft) b.Ft) (c.Ft))","(((a.Ft) b.Ft) [c.Ft])","(((a.Ft) b.Ft) c.Ft)","(([[a.Ft] [b.Ft]]) ([c.Ft]))","(([[a.Ft] [b.Ft]]) (c.Ft))","(([[a.Ft] [b.Ft]]) [c.Ft])","(([[a.Ft] [b.Ft]]) c.Ft)","(([[a.Ft] b.Ft]) ([c.Ft]))","(([[a.Ft] b.Ft]) (c.Ft))","(([[a.Ft] b.Ft]) [c.Ft])","(([[a.Ft] b.Ft]) c.Ft)","(([a.Ft [b.Ft]]) ([c.Ft]))","(([a.Ft [b.Ft]]) (c.Ft))","(([a.Ft [b.Ft]]) [c.Ft])","(([a.Ft [b.Ft]]) c.Ft)","(([a.Ft b.Ft]) ([c.Ft]))","(([a.Ft b.Ft]) (c.Ft))","(([a.Ft b.Ft]) [c.Ft])","(([a.Ft b.Ft]) c.Ft)","(([a.Ft] ([b.Ft])) ([c.Ft]))","(([a.Ft] ([b.Ft])) (c.Ft))","(([a.Ft] ([b.Ft])) [c.Ft])","(([a.Ft] ([b.Ft])) c.Ft)","(([a.Ft] (b.Ft)) ([c.Ft]))","(([a.Ft] (b.Ft)) (c.Ft))","(([a.Ft] (b.Ft)) [c.Ft])","(([a.Ft] (b.Ft)) c.Ft)","(([a.Ft] [b.Ft]) ([c.Ft]))","(([a.Ft] [b.Ft]) (c.Ft))","(([a.Ft] [b.Ft]) [c.Ft])","(([a.Ft] [b.Ft]) c.Ft)","(([a.Ft] b.Ft) ([c.Ft]))","(([a.Ft] b.Ft) (c.Ft))","(([a.Ft] b.Ft) [c.Ft])","(([a.Ft] b.Ft) c.Ft)","(([a.Ft]) (([b.Ft]) ([c.Ft])))","(([a.Ft]) (([b.Ft]) (c.Ft)))","(([a.Ft]) (([b.Ft]) [c.Ft]))","(([a.Ft]) (([b.Ft]) c.Ft))","(([a.Ft]) ((b.Ft) ([c.Ft])))","(([a.Ft]) ((b.Ft) (c.Ft)))","(([a.Ft]) ((b.Ft) [c.Ft]))","(([a.Ft]) ((b.Ft) c.Ft))","(([a.Ft]) ([[b.Ft] [c.Ft]]))","(([a.Ft]) ([[b.Ft] c.Ft]))","(([a.Ft]) ([b.Ft [c.Ft]]))","(([a.Ft]) ([b.Ft c.Ft]))","(([a.Ft]) ([b.Ft] ([c.Ft])))","(([a.Ft]) ([b.Ft] (c.Ft)))","(([a.Ft]) ([b.Ft] [c.Ft]))","(([a.Ft]) ([b.Ft] c.Ft))","(([a.Ft]) ([b.Ft]) ([c.Ft]))","(([a.Ft]) ([b.Ft]) (c.Ft))","(([a.Ft]) ([b.Ft]) [c.Ft])","(([a.Ft]) ([b.Ft]) c.Ft)","(([a.Ft]) (b.Ft ([c.Ft])))","(([a.Ft]) (b.Ft (c.Ft)))","(([a.Ft]) (b.Ft [c.Ft]))","(([a.Ft]) (b.Ft c.Ft))","(([a.Ft]) (b.Ft) ([c.Ft]))","(([a.Ft]) (b.Ft) (c.Ft))","(([a.Ft]) (b.Ft) [c.Ft])","(([a.Ft]) (b.Ft) c.Ft)","(([a.Ft]) [[b.Ft] [c.Ft]])","(([a.Ft]) [[b.Ft] c.Ft])","(([a.Ft]) [b.Ft [c.Ft]])","(([a.Ft]) [b.Ft c.Ft])","(([a.Ft]) [b.Ft] ([c.Ft]))","(([a.Ft]) [b.Ft] (c.Ft))","(([a.Ft]) [b.Ft] [c.Ft])","(([a.Ft]) [b.Ft] c.Ft)","(([a.Ft]) b.Ft ([c.Ft]))","(([a.Ft]) b.Ft (c.Ft))","(([a.Ft]) b.Ft [c.Ft])","(([a.Ft]) b.Ft c.Ft)","((a.Ft ([b.Ft])) ([c.Ft]))","((a.Ft ([b.Ft])) (c.Ft))","((a.Ft ([b.Ft])) [c.Ft])","((a.Ft ([b.Ft])) c.Ft)","((a.Ft (b.Ft)) ([c.Ft]))","((a.Ft (b.Ft)) (c.Ft))","((a.Ft (b.Ft)) [c.Ft])","((a.Ft (b.Ft)) c.Ft)","((a.Ft [b.Ft]) ([c.Ft]))","((a.Ft [b.Ft]) (c.Ft))","((a.Ft [b.Ft]) [c.Ft])","((a.Ft [b.Ft]) c.Ft)","((a.Ft b.Ft) ([c.Ft]))","((a.Ft b.Ft) (c.Ft))","((a.Ft b.Ft) [c.Ft])","((a.Ft b.Ft) c.Ft)","((a.Ft) (([b.Ft]) ([c.Ft])))","((a.Ft) (([b.Ft]) (c.Ft)))","((a.Ft) (([b.Ft]) [c.Ft]))","((a.Ft) (([b.Ft]) c.Ft))","((a.Ft) ((b.Ft) ([c.Ft])))","((a.Ft) ((b.Ft) (c.Ft)))","((a.Ft) ((b.Ft) [c.Ft]))","((a.Ft) ((b.Ft) c.Ft))","((a.Ft) ([[b.Ft] [c.Ft]]))","((a.Ft) ([[b.Ft] c.Ft]))","((a.Ft) ([b.Ft [c.Ft]]))","((a.Ft) ([b.Ft c.Ft]))","((a.Ft) ([b.Ft] ([c.Ft])))","((a.Ft) ([b.Ft] (c.Ft)))","((a.Ft) ([b.Ft] [c.Ft]))","((a.Ft) ([b.Ft] c.Ft))","((a.Ft) ([b.Ft]) ([c.Ft]))","((a.Ft) ([b.Ft]) (c.Ft))","((a.Ft) ([b.Ft]) [c.Ft])","((a.Ft) ([b.Ft]) c.Ft)","((a.Ft) (b.Ft ([c.Ft])))","((a.Ft) (b.Ft (c.Ft)))","((a.Ft) (b.Ft [c.Ft]))","((a.Ft) (b.Ft c.Ft))","((a.Ft) (b.Ft) ([c.Ft]))","((a.Ft) (b.Ft) (c.Ft))","((a.Ft) (b.Ft) [c.Ft])","((a.Ft) (b.Ft) c.Ft)","((a.Ft) [[b.Ft] [c.Ft]])","((a.Ft) [[b.Ft] c.Ft])","((a.Ft) [b.Ft [c.Ft]])","((a.Ft) [b.Ft c.Ft])","((a.Ft) [b.Ft] ([c.Ft]))","((a.Ft) [b.Ft] (c.Ft))","((a.Ft) [b.Ft] [c.Ft])","((a.Ft) [b.Ft] c.Ft)","((a.Ft) b.Ft ([c.Ft]))","((a.Ft) b.Ft (c.Ft))","((a.Ft) b.Ft [c.Ft])","((a.Ft) b.Ft c.Ft)","([[[a.Ft] [b.Ft]] [c.Ft]])","([[[a.Ft] [b.Ft]] c.Ft])","([[[a.Ft] b.Ft] [c.Ft]])","([[[a.Ft] b.Ft] c.Ft])","([[a.Ft [b.Ft]] [c.Ft]])","([[a.Ft [b.Ft]] c.Ft])","([[a.Ft b.Ft] [c.Ft]])","([[a.Ft b.Ft] c.Ft])","([[a.Ft] [[b.Ft] [c.Ft]]])","([[a.Ft] [[b.Ft] c.Ft]])","([[a.Ft] [b.Ft [c.Ft]]])","([[a.Ft] [b.Ft c.Ft]])","([[a.Ft] [b.Ft] [c.Ft]])","([[a.Ft] [b.Ft] c.Ft])","([[a.Ft] [b.Ft]] ([c.Ft]))","([[a.Ft] [b.Ft]] (c.Ft))","([[a.Ft] [b.Ft]] [c.Ft])","([[a.Ft] [b.Ft]] c.Ft)","([[a.Ft] b.Ft [c.Ft]])","([[a.Ft] b.Ft c.Ft])","([[a.Ft] b.Ft] ([c.Ft]))","([[a.Ft] b.Ft] (c.Ft))","([[a.Ft] b.Ft] [c.Ft])","([[a.Ft] b.Ft] c.Ft)","([a.Ft [[b.Ft] [c.Ft]]])","([a.Ft [[b.Ft] c.Ft]])","([a.Ft [b.Ft [c.Ft]]])","([a.Ft [b.Ft c.Ft]])","([a.Ft [b.Ft] [c.Ft]])","([a.Ft [b.Ft] c.Ft])","([a.Ft [b.Ft]] ([c.Ft]))","([a.Ft [b.Ft]] (c.Ft))","([a.Ft [b.Ft]] [c.Ft])","([a.Ft [b.Ft]] c.Ft)","([a.Ft b.Ft [c.Ft]])","([a.Ft b.Ft c.Ft])","([a.Ft b.Ft] ([c.Ft]))","([a.Ft b.Ft] (c.Ft))","([a.Ft b.Ft] [c.Ft])","([a.Ft b.Ft] c.Ft)","([a.Ft] (([b.Ft]) ([c.Ft])))","([a.Ft] (([b.Ft]) (c.Ft)))","([a.Ft] (([b.Ft]) [c.Ft]))","([a.Ft] (([b.Ft]) c.Ft))","([a.Ft] ((b.Ft) ([c.Ft])))","([a.Ft] ((b.Ft) (c.Ft)))","([a.Ft] ((b.Ft) [c.Ft]))","([a.Ft] ((b.Ft) c.Ft))","([a.Ft] ([[b.Ft] [c.Ft]]))","([a.Ft] ([[b.Ft] c.Ft]))","([a.Ft] ([b.Ft [c.Ft]]))","([a.Ft] ([b.Ft c.Ft]))","([a.Ft] ([b.Ft] ([c.Ft])))","([a.Ft] ([b.Ft] (c.Ft)))","([a.Ft] ([b.Ft] [c.Ft]))","([a.Ft] ([b.Ft] c.Ft))","([a.Ft] ([b.Ft]) ([c.Ft]))","([a.Ft] ([b.Ft]) (c.Ft))","([a.Ft] ([b.Ft]) [c.Ft])","([a.Ft] ([b.Ft]) c.Ft)","([a.Ft] (b.Ft ([c.Ft])))","([a.Ft] (b.Ft (c.Ft)))","([a.Ft] (b.Ft [c.Ft]))","([a.Ft] (b.Ft c.Ft))","([a.Ft] (b.Ft) ([c.Ft]))","([a.Ft] (b.Ft) (c.Ft))","([a.Ft] (b.Ft) [c.Ft])","([a.Ft] (b.Ft) c.Ft)","([a.Ft] [[b.Ft] [c.Ft]])","([a.Ft] [[b.Ft] c.Ft])","([a.Ft] [b.Ft [c.Ft]])","([a.Ft] [b.Ft c.Ft])","([a.Ft] [b.Ft] ([c.Ft]))","([a.Ft] [b.Ft] (c.Ft))","([a.Ft] [b.Ft] [c.Ft])","([a.Ft] [b.Ft] c.Ft)","([a.Ft] b.Ft ([c.Ft]))","([a.Ft] b.Ft (c.Ft))","([a.Ft] b.Ft [c.Ft])","([a.Ft] b.Ft c.Ft)","(a.Ft (([b.Ft]) ([c.Ft])))","(a.Ft (([b.Ft]) (c.Ft)))","(a.Ft (([b.Ft]) [c.Ft]))","(a.Ft (([b.Ft]) c.Ft))","(a.Ft ((b.Ft) ([c.Ft])))","(a.Ft ((b.Ft) (c.Ft)))","(a.Ft ((b.Ft) [c.Ft]))","(a.Ft ((b.Ft) c.Ft))","(a.Ft ([[b.Ft] [c.Ft]]))","(a.Ft ([[b.Ft] c.Ft]))","(a.Ft ([b.Ft [c.Ft]]))","(a.Ft ([b.Ft c.Ft]))","(a.Ft ([b.Ft] ([c.Ft])))","(a.Ft ([b.Ft] (c.Ft)))","(a.Ft ([b.Ft] [c.Ft]))","(a.Ft ([b.Ft] c.Ft))","(a.Ft ([b.Ft]) ([c.Ft]))","(a.Ft ([b.Ft]) (c.Ft))","(a.Ft ([b.Ft]) [c.Ft])","(a.Ft ([b.Ft]) c.Ft)","(a.Ft (b.Ft ([c.Ft])))","(a.Ft (b.Ft (c.Ft)))","(a.Ft (b.Ft [c.Ft]))","(a.Ft (b.Ft c.Ft))","(a.Ft (b.Ft) ([c.Ft]))","(a.Ft (b.Ft) (c.Ft))","(a.Ft (b.Ft) [c.Ft])","(a.Ft (b.Ft) c.Ft)","(a.Ft [[b.Ft] [c.Ft]])","(a.Ft [[b.Ft] c.Ft])","(a.Ft [b.Ft [c.Ft]])","(a.Ft [b.Ft c.Ft])","(a.Ft [b.Ft] ([c.Ft]))","(a.Ft [b.Ft] (c.Ft))","(a.Ft [b.Ft] [c.Ft])","(a.Ft [b.Ft] c.Ft)","(a.Ft b.Ft ([c.Ft]))","(a.Ft b.Ft (c.Ft))","(a.Ft b.Ft [c.Ft])","(a.Ft b.Ft c.Ft)"];
+
+var twoWordTerm_noUnary = ['([a b])','(a b)'];
+var threeWordTerm_noUnary = ['([[a b] c])','([a [b c]])','([a b c])','((a b) c)','([a b] c)','(a [b c])','(a (b c))','(a b c)'];
+var twoFtTerm_noUnary = ['(a.Ft b.Ft)','([a.Ft b.Ft])'];
+var threeFtTerm_noUnary = ['([[a.Ft b.Ft] c.Ft])','([a.Ft [b.Ft c.Ft]])','([a.Ft b.Ft c.Ft])','((a.Ft b.Ft) c.Ft)','([a.Ft b.Ft] c.Ft)','(a.Ft [b.Ft c.Ft])','(a.Ft (b.Ft c.Ft))','(a.Ft b.Ft c.Ft)'];
+
+//Alternative option expected arrays
+var threeWordTerm_headed = ["{((a) (b)) (c)}"
+,"{((a) (b)) c}"
+,"{((a) b) (c)}"
+,"{((a) b) c}"
+,"{([a b]) (c)}"
+,"{([a b]) c}"
+,"{(a (b)) (c)}"
+,"{(a (b)) c}"
+,"{(a) ((b) (c))}"
+,"{(a) ((b) c)}"
+,"{(a) ([b c])}"
+,"{(a) (b (c))}"
+,"{(a) (b) (c)}"
+,"{(a) (b) c}"
+,"{(a) (b c)}"
+,"{(a) [b c]}"
+,"{(a) b (c)}"
+,"{(a) b c}"
+,"{(a b) (c)}"
+,"{(a b) c}"
+,"{[a b] (c)}"
+,"{a ((b) (c))}"
+,"{a ((b) c)}"
+,"{a ([b c])}"
+,"{a (b (c))}"
+,"{a (b) (c)}"
+,"{a (b) c}"
+,"{a (b c)}"
+,"{a b (c)}"
+,"{(((a) (b)) (c))}"
+,"{(((a) (b)) c)}"
+,"{(((a) b) (c))}"
+,"{(((a) b) c)}"
+,"{(([a b]) (c))}"
+,"{(([a b]) c)}"
+,"{((a (b)) (c))}"
+,"{((a (b)) c)}"
+,"{((a) ((b) (c)))}"
+,"{((a) ((b) c))}"
+,"{((a) ([b c]))}"
+,"{((a) (b (c)))}"
+,"{((a) (b) (c))}"
+,"{((a) (b) c)}"
+,"{((a) (b c))}"
+,"{((a) [b c])}"
+,"{((a) b (c))}"
+,"{((a) b c)}"
+,"{((a b) (c))}"
+,"{((a b) c)}"
+,"{([[a b] c])}"
+,"{([a [b c]])}"
+,"{([a b] (c))}"
+,"{([a b] c)}"
+,"{([a b c])}"
+,"{(a ((b) (c)))}"
+,"{(a ((b) c))}"
+,"{(a ([b c]))}"
+,"{(a (b (c)))}"
+,"{(a (b) (c))}"
+,"{(a (b) c)}"
+,"{(a (b c))}"
+,"{(a [b c])}"
+,"{(a b (c))}"
+,"{(a b c)}"];
+
+var threeWordTerm_exhaustive = ["{(((a) (b)) (c))}"
+,"{(((a) (b)) c)}"
+,"{(((a) b) (c))}"
+,"{(((a) b) c)}"
+,"{(([a b]) (c))}"
+,"{(([a b]) c)}"
+,"{((a (b)) (c))}"
+,"{((a (b)) c)}"
+,"{((a) ((b) (c)))}"
+,"{((a) ((b) c))}"
+,"{((a) ([b c]))}"
+,"{((a) (b (c)))}"
+,"{((a) (b) (c))}"
+,"{((a) (b) c)}"
+,"{((a) (b c))}"
+,"{((a) [b c])}"
+,"{((a) b (c))}"
+,"{((a) b c)}"
+,"{((a b) (c))}"
+,"{((a b) c)}"
+,"{([[a b] c])}"
+,"{([a [b c]])}"
+,"{([a b] (c))}"
+,"{([a b] c)}"
+,"{([a b c])}"
+,"{(a ((b) (c)))}"
+,"{(a ((b) c))}"
+,"{(a ([b c]))}"
+,"{(a (b (c)))}"
+,"{(a (b) (c))}"
+,"{(a (b) c)}"
+,"{(a (b c))}"
+,"{(a [b c])}"
+,"{(a b (c))}"
+,"{(a b c)}"
+,"{([a b]) (c)}"
+,"{(a (b)) (c)}"
+,"{(a b) (c)}"
+,"{(a) (b c)}"
+,"{(a) (b) (c)}"
+,"{(a) (b (c))}"
+,"{(a) ((b) (c))}"
+,"{(a) ((b) c)}"
+,"{(a) ([b c])}"
+,"{((a) b) (c)}"
+,"{((a) (b)) (c)}"];
+
+var threeWordTerm_nonRecursive = ["{(a) (b) (c)}"
+,"{(a) (b) c}"
+,"{(a) (b c)}"
+,"{(a) b (c)}"
+,"{(a) b c}"
+,"{(a b) (c)}"
+,"{(a b) c}"
+,"{a (b) (c)}"
+,"{a (b) c}"
+,"{a (b c)}"
+,"{a b (c)}"
+,"{a b c}"
+,"{(a b c)}"];
+
+var threeWordTerm_iotaRoot = ["{(((a) (b)) (c))}"
+,"{(((a) (b)) c)}"
+,"{(((a) b) (c))}"
+,"{(((a) b) c)}"
+,"{(([a b]) (c))}"
+,"{(([a b]) c)}"
+,"{((a (b)) (c))}"
+,"{((a (b)) c)}"
+,"{((a) ((b) (c)))}"
+,"{((a) ((b) c))}"
+,"{((a) ([b c]))}"
+,"{((a) (b (c)))}"
+,"{((a) (b) (c))}"
+,"{((a) (b) c)}"
+,"{((a) (b c))}"
+,"{((a) [b c])}"
+,"{((a) b (c))}"
+,"{((a) b c)}"
+,"{((a b) (c))}"
+,"{((a b) c)}"
+,"{([[a b] c])}"
+,"{([a [b c]])}"
+,"{([a b] (c))}"
+,"{([a b] c)}"
+,"{([a b c])}"
+,"{(a ((b) (c)))}"
+,"{(a ((b) c))}"
+,"{(a ([b c]))}"
+,"{(a (b (c)))}"
+,"{(a (b) (c))}"
+,"{(a (b) c)}"
+,"{(a (b c))}"
+,"{(a [b c])}"
+,"{(a b (c))}"
+,"{(a b c)}"
+,"{((a) (b)) (c)}"
+,"{((a) (b)) c}"
+,"{((a) b) (c)}"
+,"{((a) b) c}"
+,"{([a b]) (c)}"
+,"{([a b]) c}"
+,"{(a (b)) (c)}"
+,"{(a (b)) c}"
+,"{(a) ((b) (c))}"
+,"{(a) ((b) c)}"
+,"{(a) ([b c])}"
+,"{(a) (b (c))}"
+,"{(a) (b) (c)}"
+,"{(a) (b) c}"
+,"{(a) (b c)}"
+,"{(a) [b c]}"
+,"{(a) b (c)}"
+,"{(a) b c}"
+,"{(a b) (c)}"
+,"{(a b) c}"
+,"{[[a b] c]}"
+,"{[a [b c]]}"
+,"{[a b] (c)}"
+,"{[a b] c}"
+,"{[a b c]}"
+,"{a ((b) (c))}"
+,"{a ((b) c)}"
+,"{a ([b c])}"
+,"{a (b (c))}"
+,"{a (b) (c)}"
+,"{a (b) c}"
+,"{a (b c)}"
+,"{a [b c]}"
+,"{a b (c)}"
+,"{a b c}"];
+
+//Initialize threeFtTerm trees based on threeWordTerm trees. threeFtTerm contains 8 times as
+//many trees as threeWordTerm. 
+
+//dec2bin code modified from:
+//https://stackoverflow.com/questions/9939760/how-do-i-convert-an-integer-to-binary-in-javascript
+//Specialized to make sure there are at least three 1's and 0's in the returned string.  May be modified to enumerate ptrees for higher terminal counts.
+function dec2bin(dec) {
+    dec = (dec >>> 0).toString(2);
+    while(true){
+        if(dec.length < 3){
+            dec = "0".concat(dec);
+        }else{
+            break
+        }
+    };
+    return dec;
+};
+
+
+//Splices in 'item' just after instr[index]
+function strSplice(instr,index,item){
+    index = index+1;
+    var outstring = instr.slice(0,index);
+    var r_str = instr.slice(index);
+    outstring = outstring.concat(item);
+    return outstring.concat(r_str);
+};
+
+//Following function was used to create the array in the threeFtTerm variable above.
+//Maps all binary numbers from 0-8 (i.e. 000,001,010,011...) onto 'a' 'b' and 'c' terminals.  Every terminal is also given the '.Ft' marker.
+//The flagged foot terminals will be unarily embedded in a word.  This creates 8 ptrees from each ptree in threeWordTerm.
+
+/*
+function enumerateThreeFtTerm(threeWordTerm){
+    var threeFtTerm = [];
+    var binMap = "";
+    var threeWordTermCopy = threeWordTerm;
+    for(var i = 0; i < threeWordTerm.length; i++){
+        for(var k = 0; k < 8; k++){
+            threeWordTermCopy = [...threeWordTerm];
+            binMap = dec2bin(k);
+            var char = 0;
+            var a_done = false;
+            var b_done = false;
+            var c_done = false;
+            while(char < threeWordTermCopy[i].length){
+                if(threeWordTermCopy[i][char] == 'a' && !a_done){
+                    if(binMap[0]=="1"){
+                        threeWordTermCopy[i] = strSplice(threeWordTermCopy[i],char,"]");
+                        threeWordTermCopy[i] = strSplice(threeWordTermCopy[i],char-1,"[");
+                        char++;
+                    };
+                    threeWordTermCopy[i] = strSplice(threeWordTermCopy[i],char,".Ft");
+                };
+                if(threeWordTermCopy[i][char] == 'b'){
+                    if(binMap[1]=="1"){
+                        threeWordTermCopy[i] = strSplice(threeWordTermCopy[i],char,"]");
+                        threeWordTermCopy[i] = strSplice(threeWordTermCopy[i],char-1,"[");
+                        char++;
+                    };
+                    threeWordTermCopy[i] = strSplice(threeWordTermCopy[i],char,".Ft");
+                };
+                if(threeWordTermCopy[i][char] == 'c'){
+                    if(binMap[2]=="1"){
+                        threeWordTermCopy[i] = strSplice(threeWordTermCopy[i],char,"]");
+                        threeWordTermCopy[i] = strSplice(threeWordTermCopy[i],char-1,"[");
+                        char++
+                    };
+                    threeWordTermCopy[i] = strSplice(threeWordTermCopy[i],char,".Ft");
+                };
+                char++;
+            };
+            threeFtTerm = threeFtTerm.concat(threeWordTermCopy[i]);
+        };
+    };
+    return threeFtTerm.sort();
+};
+*/
+
+//Initialize the arrays made from the output of compound word Gen versions
+
+//Two word terminals, unary allowed
+//Disorganized gen output
+var rawgen_twoWordTerm = GEN({}, 'a b', gen_ops_w_term_unary);
+
+//Empty array to take in parenthesized trees
+var gen_twoWordTerm = [];
+for(i=0; i < rawgen_twoWordTerm.length; i++){
+    gen_twoWordTerm.push(parenthesizeTree(rawgen_twoWordTerm[i][1], paren_ops));
+};
+
+//Three word terminals, unary allowed
+var rawgen_threeWordTerm = GEN({}, 'a b c', gen_ops_w_term_unary);
+var gen_threeWordTerm = [];
+for(i=0; i < rawgen_threeWordTerm.length; i++){
+    gen_threeWordTerm.push(parenthesizeTree(rawgen_threeWordTerm[i][1], paren_ops));
+};
+
+//Two foot terminals, unary allowed
+var rawgen_twoFtTerm = GEN({}, 'a b', gen_ops_ft_term_unary);
+var gen_twoFtTerm = []
+for(i=0; i < rawgen_twoFtTerm.length; i++){
+    gen_twoFtTerm.push(parenthesizeTree(rawgen_twoFtTerm[i][1], paren_ops));
+};
+
+//Three foot terminals, unary allowed
+var rawgen_threeFtTerm = GEN({}, 'a b c', gen_ops_ft_term_unary);
+var gen_threeFtTerm = []
+for(i=0; i < rawgen_threeFtTerm.length; i++){
+    gen_threeFtTerm.push(parenthesizeTree(rawgen_threeFtTerm[i][1], paren_ops));
+};
+gen_threeFtTermCopy = [...gen_threeFtTerm];
+
+
+//Two word terminals, no unary branching
+var rawgen_twoWordTerm_noUnary = GEN({}, 'a b', gen_ops_w_term_noUnary);
+var gen_twoWordTerm_noUnary = [];
+for(i=0; i < rawgen_twoWordTerm_noUnary.length; i++){
+    gen_twoWordTerm_noUnary.push(parenthesizeTree(rawgen_twoWordTerm_noUnary[i][1], paren_ops));
+};
+
+//Three word terminals, no unary branching
+var rawgen_threeWordTerm_noUnary = GEN({}, 'a b c', gen_ops_w_term_noUnary);
+var gen_threeWordTerm_noUnary = [];
+for(i=0; i < rawgen_threeWordTerm_noUnary.length; i++){
+    gen_threeWordTerm_noUnary.push(parenthesizeTree(rawgen_threeWordTerm_noUnary[i][1], paren_ops));
+};
+
+//Two foot terminals, no unary branching
+var rawgen_twoFtTerm_noUnary = GEN({}, 'a b', gen_ops_ft_term_noUnary);
+var gen_twoFtTerm_noUnary = []
+for(i=0; i < rawgen_twoFtTerm_noUnary.length; i++){
+    gen_twoFtTerm_noUnary.push(parenthesizeTree(rawgen_twoFtTerm_noUnary[i][1], paren_ops));
+};
+
+//Three foot terminals, no unary branching
+var rawgen_threeFtTerm_noUnary = GEN({}, 'a b c', gen_ops_ft_term_noUnary);
+var gen_threeFtTerm_noUnary = []
+for(i=0; i < rawgen_threeFtTerm_noUnary.length; i++){
+    gen_threeFtTerm_noUnary.push(parenthesizeTree(rawgen_threeFtTerm_noUnary[i][1], paren_ops));
+};
+gen_threeFtTermCopy_noUnary = [...gen_threeFtTerm_noUnary];
+
+//Alternative Options:
+    //- Headedness
+    //- Exhaustivity
+    //- Non-recursivity
+    //- Rooted in iota
+
+var rawgen_threeWordTerm_headed = GEN({}, 'a b c', gen_ops_w_term_headed);
+var gen_threeWordTerm_headed = [];
+for(i=0; i < rawgen_threeWordTerm_headed.length; i++){
+    gen_threeWordTerm_headed.push(parenthesizeTree(rawgen_threeWordTerm_headed[i][1], paren_ops));
+};
+
+var rawgen_threeWordTerm_exhaustive = GEN({}, 'a b c', gen_ops_w_term_exhaustive);
+var gen_threeWordTerm_exhaustive = [];
+for(i=0; i < rawgen_threeWordTerm_exhaustive.length; i++){
+    gen_threeWordTerm_exhaustive.push(parenthesizeTree(rawgen_threeWordTerm_exhaustive[i][1], paren_ops));
+};
+
+var rawgen_threeWordTerm_nonRecursive = GEN({}, 'a b c', gen_ops_w_term_nonRecursive);
+var gen_threeWordTerm_nonRecursive = [];
+for(i=0; i < rawgen_threeWordTerm_nonRecursive.length; i++){
+    gen_threeWordTerm_nonRecursive.push(parenthesizeTree(rawgen_threeWordTerm_nonRecursive[i][1], paren_ops));
+};
+
+var rawgen_threeWordTerm_iotaRoot = GEN({}, 'a b c', gen_ops_w_term_iotaRoot);
+var gen_threeWordTerm_iotaRoot = [];
+for(i=0; i < rawgen_threeWordTerm_iotaRoot.length; i++){
+    gen_threeWordTerm_iotaRoot.push(parenthesizeTree(rawgen_threeWordTerm_iotaRoot[i][1], paren_ops));
+};
+
+//Beyond three terminals
+var rawgen_fourWordTerm_unary = GEN({}, 'a b c d', gen_ops_w_term_unary);
+var gen_fourWordTerm_unary = [];
+for(i=0; i < rawgen_fourWordTerm_unary.length; i++){
+    gen_fourWordTerm_unary.push(parenthesizeTree(rawgen_fourWordTerm_unary[i][1], paren_ops));
+};
+
+var rawgen_fiveWordTerm_unary = GEN({}, 'a b c d e', gen_ops_w_term_unary);
+var gen_fiveWordTerm_unary = [];
+for(i=0; i < rawgen_fiveWordTerm_unary.length; i++){
+    gen_fiveWordTerm_unary.push(parenthesizeTree(rawgen_fiveWordTerm_unary[i][1], paren_ops));
+};
+
+var rawgen_sixWordTerm_unary = GEN({}, 'a b c d e f', gen_ops_w_term_unary);
+var gen_sixWordTerm_unary = [];
+for(i=0; i < rawgen_sixWordTerm_unary.length; i++){
+    gen_sixWordTerm_unary.push(parenthesizeTree(rawgen_sixWordTerm_unary[i][1], paren_ops));
+};
+
+var rawgen_sevenWordTerm_unary = GEN({}, 'a b c d e f g', gen_ops_w_term_unary);
+var gen_sevenWordTerm_unary = [];
+for(i=0; i < rawgen_sevenWordTerm_unary.length; i++){
+    gen_sevenWordTerm_unary.push(parenthesizeTree(rawgen_sevenWordTerm_unary[i][1], paren_ops));
+};
+
+//The following commands reveals that the Gen function (on May 12, 2021) does not properly enumerate the possible trees with three foot-terminals and the options in gen_ops_ft_term.
+//console.log(gen_threeFtTermCopy);
+//console.log(new Set(gen_threeFtTermCopy));
+
+//Function counts the duplicate values in an array
+function count_duplicate(observed){
+        var counts = {};
+        var duplicated = [];
+
+        for(var i =0; i < observed.length; i++){ 
+             if (counts[observed[i]]){
+             counts[observed[i]] += 1
+             } else {
+             counts[observed[i]] = 1
+             }
+        }
+        var keys = Object.keys(counts);
+        for (var i = 0; i<keys.length; i++){
+            if (counts[keys[i]] >= 2){
+                duplicated = duplicated.concat(keys[i]);
+                console.log(keys[i] + " counted: " + counts[keys[i]] + " times.")
+            }
+        }
+
+        return duplicated;
+    }
+
+//Function returns an array of which the first value is an array of unobserved but expected items and the second value is an array of overgenerated items. 
+function exp_vs_obs_trees(observed, expected){
+    var unobserved = expected.filter(function(x) { return observed.indexOf(x) < 0 });
+    var overgenerated = observed.filter(function(x) {return expected.indexOf(x) < 0});
+    var duplicated = count_duplicate(observed);
+
+
+    return [unobserved, overgenerated, duplicated];
+};
+
+
+//Takes in two arrays, observed values as expected values, and returns an error msg about undergeneration and overgeneration.
+function compareSetErrorMsg(observed, expected){
+    var triplet = exp_vs_obs_trees(observed,expected);
+    var unobserved = triplet[0];
+    var overgenerated = triplet[1];
+    var duplicated = triplet[2];
+
+    var out_string = "There are "+JSON.stringify(unobserved.length)+" ptrees unobserved in GEN's output, "+JSON.stringify(overgenerated.length)+" overgenerated ptrees in GEN's output, and "+JSON.stringify(duplicated.length)+" duplicated ptrees in GEN's output. ";
+    if(unobserved.length > 2){
+        out_string = out_string.concat("\nThe unobserved ptrees include: \n"+JSON.stringify(unobserved[0])+"\n"+JSON.stringify(unobserved[1])+"\n"+JSON.stringify(unobserved[2]));
+    };
+    if(overgenerated.length > 2){
+        out_string = out_string.concat("\nThe overgenerated ptrees include: \n"+JSON.stringify(overgenerated[2])+"\n"+JSON.stringify(overgenerated[2])+"\n"+JSON.stringify(overgenerated[2]));
+    };
+    if(duplicated.length > 2){
+        out_string = out_string.concat("\nThe duplicated ptrees include: \n"+JSON.stringify(duplicated[0])+"\n"+JSON.stringify(duplicated[1])+"\n"+JSON.stringify(duplicated[2])+'\n');
+    }
+    return out_string;
+};
+
+
+
+
+//Mocha Tests
+function compoundWordGenTests(){
+    describe('Tests for compound-word Gen allowing unary branches', function() {
+        it('Recursive w + phi for two words', function() {
+            assert.equal(JSON.stringify(gen_twoWordTerm.sort()), JSON.stringify(twoWordTerm.sort()), compareSetErrorMsg(gen_twoWordTerm,twoWordTerm));
+        });
+        it('Recursive w + phi for three words', function() {
+            assert.equal(JSON.stringify(gen_threeWordTerm.sort()), JSON.stringify(threeWordTerm.sort()), compareSetErrorMsg(gen_threeWordTerm,threeWordTerm));
+        });
+        it('Recursive w + phi with two foot terminals', function() {
+            assert.equal(JSON.stringify(gen_twoFtTerm.sort()), JSON.stringify(twoFtTerm.sort()), compareSetErrorMsg(gen_twoFtTerm,twoFtTerm));
+        });
+        it('Recursive w + phi with three foot terminals', function() {
+            assert.equal(JSON.stringify(gen_threeFtTerm.sort()), JSON.stringify(threeFtTerm.sort()), compareSetErrorMsg(gen_threeFtTerm,threeFtTerm));
+        });
+    });
+    describe('Tests for compound-word Gen disallowing unary branches', function() {
+        it('Recursive w + phi for two words', function() {
+            assert.equal(JSON.stringify(gen_twoWordTerm_noUnary.sort()), JSON.stringify(twoWordTerm_noUnary.sort()), compareSetErrorMsg(gen_twoWordTerm_noUnary,twoWordTerm_noUnary));
+        });
+        it('Recursive w + phi for three words', function() {
+            assert.equal(JSON.stringify(gen_threeWordTerm_noUnary.sort()), JSON.stringify(threeWordTerm_noUnary.sort()), compareSetErrorMsg(gen_threeWordTerm_noUnary,threeWordTerm_noUnary));
+        });
+        it('Recursive w + phi with two foot terminals', function() {
+            assert.equal(JSON.stringify(gen_twoFtTerm_noUnary.sort()), JSON.stringify(twoFtTerm_noUnary.sort()), compareSetErrorMsg(gen_twoFtTerm_noUnary,twoFtTerm_noUnary));
+        });
+        it('Recursive w + phi with three foot terminals', function() {
+            assert.equal(JSON.stringify(gen_threeFtTerm_noUnary.sort()), JSON.stringify(threeFtTerm_noUnary.sort()), compareSetErrorMsg(gen_threeFtTerm_noUnary,threeFtTerm_noUnary));
+        });
+    });
+    describe('Tests for compound-word Gen with alternative options', function() {
+        it('Must obey headedness with three word terminals', function() {
+            assert.equal(JSON.stringify(gen_threeWordTerm_headed.sort()), JSON.stringify(threeWordTerm_headed.sort()), compareSetErrorMsg(gen_threeWordTerm_headed,threeWordTerm_headed));
+        });
+        it('Must obey exhaustivity with three word terminals', function() {
+            assert.equal(JSON.stringify(gen_threeWordTerm_exhaustive.sort()), JSON.stringify(threeWordTerm_exhaustive.sort()), compareSetErrorMsg(gen_threeWordTerm_exhaustive,threeWordTerm_exhaustive));
+        });
+        it('Must obey non-recursivity with three word terminals', function() {
+            assert.equal(JSON.stringify(gen_threeWordTerm_nonRecursive.sort()), JSON.stringify(threeWordTerm_nonRecursive.sort()), compareSetErrorMsg(gen_threeWordTerm_nonRecursive,threeWordTerm_nonRecursive));
+        });
+        it('Tree rooted in iota with three word terminals', function() {
+            assert.equal(JSON.stringify(gen_threeWordTerm_iotaRoot.sort()), JSON.stringify(threeWordTerm_iotaRoot.sort()), compareSetErrorMsg(gen_threeWordTerm_iotaRoot,threeWordTerm_iotaRoot));
+        });
+    });
+
+    /*The process for finding the numbers below (i.e. 287, 2589, 24905, etc.) takes a bottom-up approach:
+        
+        -Step 1) find all the trees with one or fewer intermediate word layers. (essentially non-recursive, intermediate-branching trees)
+
+        -Step 2) for each of the Step 1 trees, calculate the number of word parsings below the intermediate layer (the Schroder numbers)
+
+        -Step 3) for each of the Step 1 trees, calculate the number of phi parsings above the intermediate layer (the Schroder numbers multiplied by 2^n)
+
+        -Step 4) for each of the Step 1 trees, multiply Step 2 results and Step 3 results
+
+        -Step 5) Add all of the results together from Step 4.
+
+    */
+
+    describe('Tests for compound-word Gen beyond three terminals', function() {
+        it('Four word terminals', function() {
+            assert.equal(gen_fourWordTerm_unary.length, 287, "");
+            assert.equal(count_duplicate(gen_fourWordTerm_unary).length, 0, "");
+        });
+        it('Five word terminals', function() {
+            assert.equal(gen_fiveWordTerm_unary.length, 2589, "");
+            assert.equal(count_duplicate(gen_fiveWordTerm_unary).length, 0, "");
+        });
+        it('Six word terminals', function() {
+            assert.equal(gen_sixWordTerm_unary.length, 24905, "");
+            assert.equal(count_duplicate(gen_sixWordTerm_unary).length, 0, "");
+        });
+        it('Seven word terminals', function() {
+            assert.equal(gen_sevenWordTerm_unary.length, 250807, "");
+            assert.equal(count_duplicate(gen_sevenWordTerm_unary).length, 0, "");
+        });
+    });
+};
+//genTerminalStringsTest.js
 
 function genTerminalStringsTest(){
     var T3 = ['a', 'b', 'c'];
@@ -5191,494 +5328,7 @@ function genWrapperTest(){
     })
 }
 
-genWrapperTest();
-function matchAllSCatsTesting(){
-    var sTree = {
-        cat: "cp",
-        id: "root",
-        children: [
-            {
-                cat: "xp",
-                id:"xp",
-                children: [
-                    {
-                        cat:"x0",
-                        id: "x0",
-                        children: [
-                            {
-                                cat: "x0",
-                                id:"x0"
-                            }
-                        ]
-                    }
-                ]
-            },
-            {
-                cat: "xp",
-                id:"xp"
-            },
-            {
-                cat: "cp",
-                id: "cp",
-                children: [
-                    {
-                        cat: "c0",
-                        id:"c0",
-                        children: [
-                            {
-                                cat: "c0",
-                                id:"c0"
-                            }
-                        ]
-                    }
-                ]
-            }
-        ]
-    }
-    var pTree =     {
-        "id": "root",
-        "cat": "i",
-    };
-describe("matchAllSCatsTesting.html", function() {
-    describe('Tableau 1: Testing "any" Syntactic category', function() {
-        it('matchSP-xp', function() {
-            assert.equal(matchSP(sTree, pTree, "xp"), 2, message(sTree, pTree, 'xp'));
-        });
-        it('matchSP-cp', function() {
-            assert.equal(matchSP(sTree, pTree, "cp"), 2, message(sTree, pTree, 'cp'));
-        });
-        it('matchSP-any', function() {
-            assert.equal(matchSP(sTree, pTree, "any"), 8, message(sTree, pTree, 'any'));
-        });
-    });
-});
-
-var con1 = ['matchSP-xp','matchSP-x0','matchSP-cp','matchSP-any'];
-var temp = makeTableau(GEN(sTree,'xp cp'), con1);
-return temp;
-}function matchAnyPCat(){
-    var stree1 ={
-        "id": "CP1",
-        "cat": "cp",
-        "children": [ 
-            { 
-                "id": "a", 
-                "cat": "x0"
-            },
-            {
-                "cat": "cp", 
-                "id": "XP_4", 
-                "children": [ 
-                    {
-                        "id": "b", 
-                        "cat": "x0"
-                    }, 
-                    { 
-                        "id": "c", 
-                        "cat": "x0"
-                    } 
-                ]    
-            } 
-        ]
-    };
-    var ptree1 = {
-        "id": 'root',
-        "cat": 'i',
-        "children": [
-            {
-                "id": 'a',
-                "cat": 'w',
-            },
-            {
-                "id": 'cp',
-                "cat": 'phi',
-                "children": [
-                    {
-                        "id": 'b',
-                        "cat": 'w',
-                    },
-                    {
-                        "id": 'c',
-                        "cat": 'w',
-                    }
-                ]
-            }
-        ]
-    }; 
-
-    var ptree2 = {
-        "id": 'root',
-        "cat": 'i',
-        "children": [
-            {
-                "id": 'c',
-                "cat": 'w',
-            },
-            {
-                "id": 'cp',
-                "cat": 'phi',
-                "children": [
-                    {
-                        "id": 'a',
-                        "cat": 'w',
-                    },
-                    {
-                        "id": 'b',
-                        "cat": 'w',
-                    }
-                ]
-            }
-        ]
-    }; 
-        
-    var stree2 = {
-        "id": "CP1",
-        "cat": "cp",
-        "children": [ 
-            {
-                "cat": "xp", 
-                "id": "XP_8", 
-                "children": [ 
-                    {
-                        "id": "a", 
-                        "cat": "x0"
-                    } 
-                ] 
-            },
-            { 
-                "cat": "xp", 
-                "id": "XP_9", 
-                "children": [ 
-                    {
-                        "id": "b", 
-                        "cat": "x0"
-                    } 
-                ] 
-            },
-            {
-                "cat": "xp", 
-                "id": "XP_10", 
-                "children": [ 
-                    {
-                        "id": "c", 
-                        "cat": "x0"
-                    } 
-                ] 
-            } 
-        ]
-    };
-
-    var ptree3 = {
-        "id": 'root',
-        "cat": 'i',
-        "children": [
-            {
-                "id": 'xp',
-                "cat": 'phi',
-                "children": [
-                    {
-                        "id": 'x',
-                        "cat": 'w'
-                    },
-                    {
-                        "id": 'y',
-                        "cat": 'w'
-                    },
-                    {
-                        "id": 'z',
-                        "cat": 'w'
-                    }
-                ]
-            }
-        ]
-    }; 
-
-    describe("matchAnyPCat.html", function() {
-        describe('matchSP(cp, any pcat)', function() {
-            it('matchSP-cp', function() {
-                assert.equal(matchSP(stree1, ptree1, 'cp', {anyPCat:true}), 0, message(stree1, ptree1, 'cp', {anyPCat:true}));
-                assert.equal(matchSP(stree1, ptree2, 'cp', {anyPCat:true}), 1, message(stree1, ptree2, 'cp', {anyPCat:true}));
-            });
-            it('wrapper function matchSPAny', function(){
-                assert.equal(matchSPAny(stree1, ptree2, 'cp'), 1, message(stree1, ptree2, 'cp'));
-            })
-        });
-        describe('matchSP(xp, any pcat)', function() {
-            it('matchSP-xp', function() {
-                assert.equal(matchSP(stree2, ptree1, 'xp', {anyPCat:true}), 0, message(stree2, ptree1, 'xp', {anyPCat:true}));
-                assert.equal(matchSP(stree2, ptree3, 'xp', {anyPCat:true}), 3, message(stree2, ptree3, 'xp', {anyPCat:true}));
-            });
-        });
-        describe('matchSP(all s-cats, any p-cat)', function() {
-            it('matchSP-any', function() {
-                assert.equal(matchSP(stree2, ptree3, 'any', {anyPCat:true}), 7, message(stree2, ptree1, 'any', {anyPCat:true}));
-            });
-        });
-    });
-    var arr = new Array();
-    var con1 = ['matchSPAny-xp','matchSP-cp', 'matchSPAny-cp'];
-    arr[0] = makeTableau(GEN(stree1,'a b c'), con1);
-    arr[1] = makeTableau(GEN(stree2,'a b c'), con1);
-    return arr;
-}//matchPSTest
-
-function matchPSTest(){
-    var stree1 =  {
-        "id": "root",
-        "cat": "cp",
-        "children": [
-            {
-                "cat": "xp",
-                "id": "nonminMax",
-                "children": [
-                    {
-                        "id": "a",
-                        "cat": "x0"
-                    },
-                    {
-                        "cat": "xp",
-                        "id": "nonminNonmax",
-                        "children": [
-                            {
-                                "id": "b",
-                                "cat": "x0"
-                            },
-                            {
-                                "cat": "xp",
-                                "id": "minNonmax",
-                                "children": [
-                                    {
-                                        "id": "c",
-                                        "cat": "x0"
-                                    },
-                                    {
-                                        "id": "d",
-                                        "cat": "x0"
-                                    }
-                                ]
-                            }
-                        ]
-                    }
-                ]
-            },
-            {
-                "cat": "xp",
-                "id": "minMax",
-                "children": [
-                    {
-                        "id": "e",
-                        "cat": "x0"
-                    },
-                    {
-                        "id": "f",
-                        "cat": "x0"
-                    }
-                ]
-            }
-        ]
-    };
-	var stree2 =  {
-        "id": "root",
-        "cat": "cp",
-        "children": [
-            {
-                "cat": "cp",
-                "children": [
-                    {
-                        "id": "a",
-                        "cat": "x0"
-                    },
-                    {
-                        "cat": "cp",
-                        "children": [
-                            {
-                                "id": "b",
-                                "cat": "x0"
-                            },
-                        ]
-                    }
-                ]
-            },
-            {
-                "cat": "cp",
-                "children": [
-                    {
-                        "id": "c",
-                        "cat": "x0"
-                    },
-                ]
-            },
-            {
-                "cat": "cp",
-                "children": [
-                    {
-                        "id": "d",
-                        "cat": "x0"
-                    },
-                    {
-                        "id": "e",
-                        "cat": "x0"
-                    },
-                    {
-                        "id": "f",
-                        "cat": "x0"
-                    }
-                ]
-            }
-
-        ]
-    };
-			
-	var ptree1 =  {
-        "id": "root",
-        "cat": "i",
-        "children": [
-            {
-                "cat": "phi",
-                "id": "nonminMax",
-                "children": [
-                    {
-                        "id": "a",
-                        "cat": "w"
-                    },
-                    {
-                        "cat": "phi",
-                        "id": "nonminNonmax",
-                        "children": [
-                            {
-                                "id": "b",
-                                "cat": "w"
-                            },
-                            {
-                                "cat": "phi",
-                                "id": "minNonmax",
-                                "children": [
-                                    {
-                                        "id": "c",
-                                        "cat": "w"
-                                    },
-                                    {
-                                        "id": "d",
-                                        "cat": "w"
-                                    }
-                                ]
-                            }
-                        ]
-                    }
-                ]
-            },
-            {
-                "cat": "phi",
-                "id": "minMax",
-                "children": [
-                    {
-                        "id": "e",
-                        "cat": "w"
-                    },
-                    {
-                        "id": "f",
-                        "cat": "w"
-                    }
-                ]
-            }
-        ]
-    };
-
-describe("matchPSTest.html", function() {
-    describe('Tableau 1: Tests all/only Syntactic Subcategories', function() {
-        it('matchPS', function() {
-            assert.equal(matchPS(stree1, ptree1, "phi"), 0, message(stree1, ptree1));
-            assert.equal(matchPS(stree2, ptree1, "phi"), 4, message(stree2, ptree1));
-        });
-        it('maxProsody', function() {
-            let options = {"maxProsody": true};
-            assert.equal(matchPS(stree1, ptree1, "phi", options), 0, message(stree1, ptree1, options));
-            assert.equal(matchPS(stree2, ptree1, "phi", options), 2, message(stree2, ptree1, options));
-        });
-        it('nonMaxProsody', function() {
-            let options = {"nonMaxProsody": true};
-            assert.equal(matchPS(stree1, ptree1, "phi", options), 0, message(stree1, ptree1, options));
-            assert.equal(matchPS(stree2, ptree1, "phi", options), 2, message(stree2, ptree1, options));
-        });
-        it('minProsody', function() {
-            let options = {"minProsody": true};
-            assert.equal(matchPS(stree1, ptree1, "phi", options), 0, message(stree1, ptree1, options));
-            assert.equal(matchPS(stree2, ptree1, "phi", options), 2, message(stree2, ptree1, options));
-        });
-        it('minProsody maxProsody', function() {
-            let options = {"maxProsody": true, "minProsody": true};
-            assert.equal(matchPS(stree1, ptree1, "phi", options), 0, message(stree1, ptree1, options));
-            assert.equal(matchPS(stree2, ptree1, "phi", options), 1, message(stree2, ptree1, options));
-        });
-        it('minProsody nonMaxProsody', function() {
-            let options = {"nonMaxProsody": true, "minProsody": true};
-            assert.equal(matchPS(stree1, ptree1, "phi", options), 0, message(stree1, ptree1, options));
-            assert.equal(matchPS(stree2, ptree1, "phi", options), 1, message(stree2, ptree1, options));
-        });
-        it('nonMinProsody', function() {
-            let options = {"nonMinProsody": true};
-            assert.equal(matchPS(stree1, ptree1, "phi", options), 0, message(stree1, ptree1, options));
-            assert.equal(matchPS(stree2, ptree1, "phi", options), 2, message(stree2, ptree1, options));
-        });
-        it('maxProsody nonMinProsody', function() {
-            let options = {"nonMinProsody": true, "maxProsody": true};
-            assert.equal(matchPS(stree1, ptree1, "phi", options), 0, message(stree1, ptree1, options));
-            assert.equal(matchPS(stree2, ptree1, "phi", options), 1, message(stree2, ptree1, options));
-        });
-        it('nonMaxProsody nonMinProsody', function() {
-            let options = {"nonMinProsody": true, "nonMaxProsody": true};
-            assert.equal(matchPS(stree1, ptree1, "phi", options), 0, message(stree1, ptree1, options));
-            assert.equal(matchPS(stree2, ptree1, "phi", options), 1, message(stree2, ptree1, options));
-        });
-    });
-
-    describe('Tableau 2: Tests all/only Prosodic Subcategories', function() {
-        it('maxSyntax', function() {
-            let options = {"maxSyntax": true};
-            assert.equal(matchPS(stree1, ptree1, "phi", options), 2, message(stree1, ptree1, options));
-            assert.equal(matchPS(stree2, ptree1, "phi", options), 4, message(stree2, ptree1, options));
-        });
-        it('nonMaxSyntax', function() {
-            let options = {"nonMaxSyntax": true};
-            assert.equal(matchPS(stree1, ptree1, "phi", options), 2, message(stree1, ptree1, options));
-            assert.equal(matchPS(stree2, ptree1, "phi", options), 4, message(stree2, ptree1, options));
-        });
-        it('minSyntax', function() {
-            let options = {"minSyntax": true};
-            assert.equal(matchPS(stree1, ptree1, "phi", options), 2, message(stree1, ptree1, options));
-            assert.equal(matchPS(stree2, ptree1, "phi", options), 4, message(stree2, ptree1, options));
-        });
-        it('maxSyntax minSyntax', function() {
-            let options = {"maxSyntax": true, "minSyntax": true};
-            assert.equal(matchPS(stree1, ptree1, "phi", options), 3, message(stree1, ptree1, options));
-            assert.equal(matchPS(stree2, ptree1, "phi", options), 4, message(stree2, ptree1, options));
-        });
-        it('nonMSyntax minSyntax', function() {
-            let options = {"nonMaxSyntax": true, "minSyntax": true};
-            assert.equal(matchPS(stree1, ptree1, "phi", options), 3, message(stree1, ptree1, options));
-            assert.equal(matchPS(stree2, ptree1, "phi", options), 4, message(stree2, ptree1, options));
-        });
-        it('nonMinSyntax', function() {
-            let options = {"nonMinSyntax": true};
-            assert.equal(matchPS(stree1, ptree1, "phi", options), 2, message(stree1, ptree1, options));
-            assert.equal(matchPS(stree2, ptree1, "phi", options), 4, message(stree2, ptree1, options));
-        });
-        it('maxSyntax nonMinSyntax', function() {
-            let options = {"maxSyntax": true, "nonMinSyntax": true};
-            assert.equal(matchPS(stree1, ptree1, "phi", options), 3, message(stree1, ptree1, options));
-            assert.equal(matchPS(stree2, ptree1, "phi", options), 4, message(stree2, ptree1, options));
-        });
-        it('nonMaxSyntax nonMinSyntax', function() {
-            let options = {"nonMaxSyntax": true, "nonMinSyntax": true};
-            assert.equal(matchPS(stree1, ptree1, "phi", options), 3, message(stree1, ptree1, options));
-            assert.equal(matchPS(stree2, ptree1, "phi", options), 4, message(stree2, ptree1, options));
-        });
-    });
-});
-var myConstraintSet = ['matchPS-i', 'matchPS-phi', 'matchPS-w'];//, 'binMinBranches-phi', 'binMaxBranches-phi'];
-var myTableau = makeTableau(GEN(stree1, 'a b c'), myConstraintSet);
-return myTableau;
-}//matchTest
+genWrapperTest();//matchTest
 
 function matchTest(){
             var stree1 =  {
@@ -7508,258 +7158,266 @@ function noShiftGradientTest(){
     });
 }
 
-noShiftGradientTest();function strongEndTest(){
-    var ptree1 = {
-        cat: "i",
-        id: "root",
-        children: [
-            {
-                cat: "phi",
-                id:"a",
-            },
-            {
-                cat: "phi",
-                id:"b"
+noShiftGradientTest();// Interface testing with mocha and chai for input validation for string generation.
+// Doesn't get auto-tested in the console at present because it requires the interface.
+
+var assert; 
+
+function setUp(){
+    mocha.setup("bdd");
+    mocha.checkLeaks();
+    assert = chai.assert;
+
+    const mochaDiv = document.createElement("div");
+    mochaDiv.setAttribute("id", "mocha");
+
+    const notResults = document.getElementsByClassName("spotBlock")[2];
+    notResults.insertBefore(mochaDiv, notResults.firstChild);
+}
+
+function runStringInputValidationTest() {
+    setUp();
+    describe("stringInputValidationTest.js", function(){
+        describe("Generate trees", function() {
+            this.timeout(15000); //timeout at 15000ms
+            //override timeout - write done inside the parenthesis of function() 
+            //setTimeout(done, #timeout time in ms) for the test you want to change timeout
+            it("Generate combinations and permutations not added", function() {
+                document.getElementById("spotForm")["genStringsInput"].value = "";
+                document.getElementById("spotForm")["genStringsInput"].length = undefined;
+                document.getElementById("stringGeneration").classList = [""];
+                genTerminalStrings(); 
+                assert.equal(document.getElementById("warning").style.display, "none", "Displayed warning when there is none!");
+            });
+
+            it("Generate combinations and permutations closed", function() {
+                document.getElementById("spotForm")["genStringsInput"].value = "j";
+                document.getElementById("spotForm")["genStringsMin"].value = 3;
+                document.getElementById("spotForm")["genStringsMax"].value = 3;
+                document.getElementById("spotForm")["genStringsInput"].length = undefined;
+                document.getElementById("stringGeneration").classList = [""];
+                genTerminalStrings();
+                assert.equal(document.getElementById("warning").style.display, "block", "Displayed warning not showing!");
+            });
+
+            for(let i = 0; i < 11; i++){
+                it("Generate number: " + i, function() {
+                    document.getElementById("error").style.display = "none";
+                    document.getElementById("spotForm")["genStringsInput"].value = "j";
+                    document.getElementById("spotForm")["genStringsMin"].value = i;
+                    document.getElementById("spotForm")["genStringsMax"].value = i;
+                    document.getElementById("spotForm")["genStringsInput"].length = undefined;
+                    document.getElementById("stringGeneration").classList = ["open"];
+                    genTerminalStrings();
+                    if (i == 0 || i == 10){
+                        assert.equal(document.getElementById("error").style.display, "block", "Displayed error not showing!");
+                    }else{
+                        assert.equal(document.getElementById("error").style.display, "none", "Displayed error when there is none!");
+                    }
+                });
             }
-        ]
-    }
-    var ptree2 = {
-        id: "root",
-        cat: "i",
-        children: [
-            {
-                cat: "w",
-                id:"a",
-            },
-            {
-                cat: "phi",
-                id:"b"
+
+            it("Generate no min or max present number", function() {
+                document.getElementById("spotForm")["genStringsInput"].value = "j";
+                document.getElementById("spotForm")["genStringsInput"].length = undefined;
+                document.getElementById("stringGeneration").classList = ["open"];
+                genTerminalStrings();
+                assert.equal(document.getElementById("error").style.display, "block", "Displayed error not showing!");
+            });
+
+            it("Generate min or max present not number", function() {
+                document.getElementById("spotForm")["genStringsInput"].value = "j";
+                document.getElementById("spotForm")["genStringsMin"].value = "j";
+                document.getElementById("spotForm")["genStringsMax"].value = "j";
+                document.getElementById("spotForm")["genStringsInput"].length = undefined;
+                document.getElementById("stringGeneration").classList = ["open"];
+                genTerminalStrings();
+                assert.equal(document.getElementById("error").style.display, "block", "Displayed error not showing!");
+            });
+
+            it("Generate min greater than max", function() {
+                document.getElementById("spotForm")["genStringsInput"].value = "j"
+                document.getElementById("spotForm")["genStringsMin"].value = 5;
+                document.getElementById("spotForm")["genStringsMax"].value = 3;
+                document.getElementById("spotForm")["genStringsInput"].length = undefined;
+                document.getElementById("stringGeneration").classList = ["open"];
+                genTerminalStrings();
+                assert.equal(document.getElementById("error").style.display, "block", "Displayed error not showing!");
+            });
+        });
+
+        describe("Generate terminal strings", function() {
+            this.timeout(15000);
+            it("Input not added", function() {
+                document.getElementById("spotForm")["genStringsInput"].value = "";
+                document.getElementById("spotForm")["genStringsInput"].length = undefined;
+                document.getElementById("stringGeneration").classList = ["open"];
+                genTerminalStrings(); 
+                assert.equal(document.getElementById("error").style.display, "block", "Displayed error not showing!");
+            });
+
+            for(let i = 0; i < 11; i++){
+                it("Generate number: " + i, function() {
+                    document.getElementById("error").style.display = "none";
+                    document.getElementById("spotForm")["genStringsInput"].value = "j"
+                    document.getElementById("spotForm")["genStringsMin"].value = i;
+                    document.getElementById("spotForm")["genStringsMax"].value = i;
+                    document.getElementById("spotForm")["genStringsInput"].length = undefined;
+                    document.getElementById("stringGeneration").classList = ["open"];
+                    genTerminalStrings();
+                    if (i == 0 || i == 10){
+                        assert.equal(document.getElementById("error").style.display, "block", "Displayed error not showing!");
+                    }else{
+                        assert.equal(document.getElementById("error").style.display, "none", "Displayed error when there is none!");
+                    }
+                });
             }
-        ]
-    }
-    var ptree3 = {
-        id: "root",
-        cat: "i",
-        children: [
-            {
-                cat: "phi",
-                id:"a",
-            },
-            {
-                cat: "w",
-                id:"b"
-            }
-        ]
-    }
-    var ptree4 = {
-        id: "root",
-        cat: "i",
-        children: [
-            {
-                cat: "phi",
-                id:"phi",
-                children:[
-                    {
-                        cat: "phi",
-                        id:"a",
-                    },
-                    {
-                        cat: "w",
-                        id:"b"
-                    }
-                ]
-            },
-            {
-                cat: "w",
-                id:"w1",
-                children:[
-                    {
-                        cat: "w",
-                        id:"c",
-                    },
-                    {
-                        cat: "w",
-                        id:"w3",
-                        children:[
-                            {
-                                cat: "phi",
-                                id:"d"
-                            },
-                            {
-                                cat: "phi",
-                                id:"e"
-                            }
-                        ]
-                    }
-                ]
-            }
-        ]
-    }
-    
-    var ptree5 = {
-        cat: "i",
-        id: "root",
-        children: [
-            {
-                cat: "phi",
-                id:"phi1",
-                children:[
-                    {
-                        cat: "phi",
-                        id:"a"
-                    },
-                    {
-                        cat: "phi",
-                        id:"phi2",
-                        children:[
-                            {
-                                cat: "w",
-                                id:"b"
-                            },
-                            {
-                                cat: "w",
-                                id:"c"
-                            }
-                        ]
-                    }
-                ]
-            },
-            {
-                cat: "phi",
-                id:"phi",
-                children:[
-                    {
-                        cat: "i",
-                        id:"d"
-                    },
-                    {
-                        cat: "i",
-                        id:"e"
-                    }
-                ]
-            },
-            {
-                cat: "i",
-                id:"i",
-                children:[
-                    {
-                        cat: "w",
-                        id:"f"
-                    },
-                    {
-                        cat: "w",
-                        id:"g"
-                    }
-                ]
-            }
-        ]
-    }
-    var ptree6 = {
-        cat: "i",
-        id: "root",
-        children: [
-            {
-                cat: "phi",
-                id:"phi1",
-                children:[
-                    {
-                        cat: "phi",
-                        id:"phi2"
-                    },
-                    {
-                        cat: "w",
-                        id:"w1",
-                        children:[
-                            {
-                                cat: "phi",
-                                id:"a"
-                            },
-                            {
-                                cat: "w",
-                                id:"b"
-                            }
-                        ]
-                    }
-                ]
-            },
-            {
-                cat: "phi",
-                id:"phi4",
-                children:[
-                    {
-                        cat: "phi",
-                        id:"c"
-                    },
-                    {
-                        cat: "w",
-                        id:"d"
-                    }
-                ]
-            },
-            {
-                cat: "w",
-                id:"w",
-                children:[
-                    {
-                        cat: "phi",
-                        id:"phi",
-                        children:[
-                            {
-                                cat: "phi",
-                                id:"e"
-                            },
-                            {
-                                cat: "w",
-                                id:"f"
-                            }
-                        ]
-                    },
-                    {
-                        cat: "w",
-                        id:"g"
-                    }
-                ]
-            }
-        ]
-    }
-    
-    describe("strongEndTest.html", function(){
-        describe('StrongEndLocal, One-Layer Case', function(){
-            it('No violations: '+parenthesizeTree(ptree1), function() {
-                assert.equal(strongEndLocal('', ptree1, ''), 0, parenthesizeTree(ptree1));
+
+            it("Generate no min or max present number", function() {
+                document.getElementById("spotForm")["genStringsInput"].value = "j";
+                document.getElementById("spotForm")["genStringsInput"].length = undefined;
+                document.getElementById("stringGeneration").classList = ["open"];
+                genTerminalStrings();
+                assert.equal(document.getElementById("error").style.display, "block", "Displayed error not showing!");
             });
-            it('No violations: '+parenthesizeTree(ptree2), function() {
-                assert.equal(strongEndLocal('', ptree2, ''), 0, parenthesizeTree(ptree2));
+
+            it("Generate min or max present not number", function() {
+                document.getElementById("spotForm")["genStringsInput"].value = "j";
+                document.getElementById("spotForm")["genStringsMin"].value = "j";
+                document.getElementById("spotForm")["genStringsMax"].value = "j";
+                document.getElementById("spotForm")["genStringsInput"].length = undefined;
+                document.getElementById("stringGeneration").classList = ["open"];
+                genTerminalStrings();
+                assert.equal(document.getElementById("error").style.display, "block", "Displayed error not showing!");
             });
-            it('1 violation: '+parenthesizeTree(ptree3), function() {
-                assert.equal(strongEndLocal('', ptree3, ''), 1, parenthesizeTree(ptree3));
+
+            it("Generate min greater than max", function() {
+                document.getElementById("spotForm")["genStringsInput"].value = "j"
+                document.getElementById("spotForm")["genStringsMin"].value = 5;
+                document.getElementById("spotForm")["genStringsMax"].value = 3;
+                document.getElementById("spotForm")["genStringsInput"].length = undefined;
+                document.getElementById("stringGeneration").classList = ["open"];
+                genTerminalStrings();
+                assert.equal(document.getElementById("error").style.display, "block", "Displayed error not showing!");
             });
-        })
-        describe('StrongEndLocal, Multi-Layer Case', function(){
-            it('2 violations: '+parenthesizeTree(ptree4), function() {
-                assert.equal(strongEndLocal('', ptree4, ''), 2, parenthesizeTree(ptree4));
-            });
-            it('No violations: '+parenthesizeTree(ptree5), function() {
-                assert.equal(strongEndLocal('', ptree5, ''), 0, parenthesizeTree(ptree5));
-            });
-            it('6 violations: '+parenthesizeTree(ptree6), function() {
-                assert.equal(strongEndLocal('', ptree6, ''), 6, parenthesizeTree(ptree6));
-            });
-        })
-        /*
-        describe('Parameterizing StrongEnd to a category', function(){
-            it('3 violations: StrongEnd(phi), '+parenthesizeTree(ptree6), function() {
-                assert.equal(strongEndLocal('', ptree6, 'phi'), 3, parenthesizeTree(ptree6));
-            });
-            it('2 violations: StrongEnd(w), '+parenthesizeTree(ptree6), function() {
-                assert.equal(strongEndLocal('', ptree6, 'w'), 2, parenthesizeTree(ptree6));
-            });
-            it('0 violations: StrongEnd(i), '+parenthesizeTree(ptree6), function() {
-                assert.equal(strongEndLocal('', ptree6, 'i'), 2, parenthesizeTree(ptree6));
-            });
-        })*/
+        });
     });
-}ptree1 = {
+    mocha.run();
+}
+// Interface testing with mocha and chai. Tests save/load/clear for string generation on the interface.
+// Doesn't get auto-tested in the console at present because it requires the interface.
+
+var assert;
+
+function setUpStringTest(){
+    mocha.setup('bdd');
+    mocha.checkLeaks();
+    assert = chai.assert;
+
+    const mochaDiv = document.createElement("div");
+    mochaDiv.setAttribute("id", "mocha");
+
+    const notResults = document.getElementsByClassName("not-results")[0];
+
+    notResults.insertBefore(mochaDiv, notResults.firstChild);
+}
+
+function runStringTest() {
+    setUpStringTest();
+
+    describe("stringTest.js", function(){
+        describe("String Generation save/load/clear test", function(){
+            var testSettings = '';
+            var numOfInputs = 0;
+            const arbitraryStrings = ["9000", "9001", "9002", "9003", "9004", "9005",
+             "9006", "9007", "9008", "9009"]; //strings you would not find anywhere else in the saved analysis
+            var unusedStrings, listDiv, inputs; //assigned beforeEach below
+
+
+            beforeEach(function() {
+                //runs before each "it" block (hence, beforeEach)
+                unusedStrings = arbitraryStrings.slice(); //shallow copy, fyi
+                listDiv = document.getElementById("listOfTerminals");
+                inputs = listDiv.getElementsByTagName("input"); //reset b/c inputs added/removed
+
+                changeInputTabs('goButton', 'inputButton');
+            });
+
+            it("Save with one string", function(){
+                for(let input of inputs) {
+                    // assign an arbitrary string to each input
+                    if(input.type === 'text') {
+                        numOfInputs ++;
+                        input.value = unusedStrings.pop();
+                    }
+                }
+                let savedString = record_analysis();
+                testSettings = JSON.parse(savedString).myTrees;
+                //object is more usefull than string later on. should not change until "two strings" tests
+
+                for(let i = 0; i < numOfInputs.length; i++){
+                    //all we need to know now is that the arbitrary strings all ended up in the saved analysis
+                    let regex = new RegExp(arbitraryStrings[arbitraryStrings.length - i]);
+                    assert(savedString.search(regex) > 0, "Input number " + i + " was not saved");
+                }
+            });
+
+            it("Clear with one string", function() {
+                clearAnalysis();
+                for(let input of inputs) {
+                    assert(input.value == '', input.name + " is not cleared");
+                }
+            });
+
+            it("Load with one string", function() {
+                //load earlier saved string
+                my_built_in_analysis({}, false, testSettings, []);
+                for(let input of inputs) {
+                    //we know the order arbitraryStrings were assigned, check that the same order is preserved
+                    assert(input.value === unusedStrings.pop(), input.name + " did not load correctly");
+                }
+            });
+
+            it("Save with two strings", function() {
+                /* All we have to do now is click the "add list of terminals" button to get
+                   more terminal string inputs and run the exact same three testcases above.
+                   I don't want to factor out the copied code, though, because then clicking
+                   on the test case in mocha would be less useful.
+                */
+                document.getElementById("addList").click();
+                for(let input of inputs) {
+                    if(input.type === 'text') {
+                        numOfInputs ++;
+                        input.value = unusedStrings.pop();
+                    }
+                }
+                let savedString = record_analysis();
+                testSettings = JSON.parse(savedString).myTrees;
+
+                for(let i = 0; i < numOfInputs.length; i++){
+                    let regex = new RegExp(arbitraryStrings[arbitraryStrings.length - i]);
+                    assert(savedString.search(regex) > 0, "Input number " + i + " was not saved");
+                }
+            });
+            it("Clear with two strings", function() {
+                clearAnalysis();
+                for(let input of inputs) {
+                    assert(input.value == '', input.name + " is not cleared");
+                }
+            });
+
+            it("Load with two strings", function() {
+                my_built_in_analysis({}, false, testSettings, []);
+                for(let input of inputs) {
+                    assert(input.value === unusedStrings.pop(), input.name + " did not load correctly");
+                }
+            });
+        });
+    });
+
+    mocha.run();
+}
+ptree1 = {
             "id": "IP_1",
             "cat": "i",
             "children": [
@@ -9709,242 +9367,4 @@ function treeTrimmingTest(){
     });
 };
 
-treeTrimmingTest();function weakStartTest(){
-    var ptree1 = {
-        cat: "i",
-        id: "root",
-        children: [
-            {
-                cat: "phi",
-                id:"a",
-            },
-            {
-                cat: "phi",
-                id:"b"
-            }
-        ]
-    }
-    var ptree2 = {
-        id: "root",
-        cat: "i",
-        children: [
-            {
-                cat: "w",
-                id:"a",
-            },
-            {
-                cat: "phi",
-                id:"b"
-            }
-        ]
-    }
-    var ptree3 = {
-        id: "root",
-        cat: "i",
-        children: [
-            {
-                cat: "phi",
-                id:"a",
-            },
-            {
-                cat: "w",
-                id:"b"
-            }
-        ]
-    }
-    var ptree4 = {
-        id: "root",
-        cat: "i",
-        children: [
-            {
-                cat: "phi",
-                id:"phi",
-                children:[
-                    {
-                        cat: "phi",
-                        id:"a",
-                    },
-                    {
-                        cat: "w",
-                        id:"b"
-                    }
-                ]
-            },
-            {
-                cat: "w",
-                id:"w1",
-                children:[
-                    {
-                        cat: "w",
-                        id:"c",
-                    },
-                    {
-                        cat: "w",
-                        id:"w3",
-                        children:[
-                            {
-                                cat: "phi",
-                                id:"d"
-                            },
-                            {
-                                cat: "phi",
-                                id:"e"
-                            }
-                        ]
-                    }
-                ]
-            }
-        ]
-    }
-    var ptree5 = {
-        id: "root",
-        cat: "i",
-        children: [
-            {
-                cat: "phi",
-                id:"phi1",
-                children:[
-                    {
-                        cat: "phi",
-                        id:"a"
-                    },
-                    {
-                        cat: "phi",
-                        id:"phi3",
-                        children:[
-                            {
-                                cat: "w",
-                                id:"b"
-                            },
-                            {
-                                cat: "w",
-                                id:"c"
-                            }
-                        ]
-                    }
-                ]
-            },
-            {
-                cat: "phi",
-                id:"phi4",
-                children:[
-                    {
-                        cat: "w",
-                        id:"d"
-                    },
-                    {
-                        cat: "w",
-                        id:"e"
-                    }
-                ]
-            },
-            {
-                cat: "w",
-                id:"w",
-                children:[
-                    {
-                        cat: "w",
-                        id:"f"
-                    },
-                    {
-                        cat: "w",
-                        id:"g"
-                    }
-                ]
-            }
-        ]
-    }
-    var ptree6 = {
-        id: "root",
-        cat: "i",
-        children: [
-            {
-                cat: "phi",
-                id:"phi",
-                children:[
-                    {
-                        cat: "phi",
-                        id:"a"
-                    },
-                    {
-                        cat: "w",
-                        id:"w",
-                        children:[
-                            {
-                                cat: "phi",
-                                id:"b"
-                            },
-                            {
-                                cat: "w",
-                                id:"c"
-                            }
-                        ]
-                    }
-                ]
-            },
-            {
-                cat: "w",
-                id:"w",
-                children:[
-                    {
-                        cat: "phi",
-                        id:"d"
-                    },
-                    {
-                        cat: "w",
-                        id:"e"
-                    }
-                ]
-            },
-            {
-                cat: "w",
-                id:"w",
-                children:[
-                    {
-                        cat: "phi",
-                        id:"phi",
-                        children:[
-                            {
-                                cat: "phi",
-                                id:"f"
-                            },
-                            {
-                                cat: "w",
-                                id:"g"
-                            }
-                        ]
-                    },
-                    {
-                        cat: "w",
-                        id:"h"
-                    }
-                ]
-            }
-        ]
-    }
-
-    describe("weakStartTest.html", function(){
-        describe('One-Layer Cases', function(){
-            it('One-Layer Case:'+parenthesizeTree(ptree1), function() {
-                assert.equal(weakStartLocal('', ptree1, ''), 0, parenthesizeTree(ptree1));
-            });
-            it('One-Layer Case: '+parenthesizeTree(ptree2), function() {
-                assert.equal(weakStartLocal('', ptree2, ''), 0, parenthesizeTree(ptree2));
-            });
-            it('One-Layer Case: '+parenthesizeTree(ptree3), function() {
-                assert.equal(weakStartLocal('', ptree3, ''), 1, parenthesizeTree(ptree3));
-            });
-        })
-        describe('Multi-Layer Cases', function(){
-            it('Multi-Layer Case: '+parenthesizeTree(ptree4), function() {
-                assert.equal(weakStartLocal('', ptree4, ''), 2, parenthesizeTree(ptree4));
-            });
-            it('Multi-Layer Case: '+parenthesizeTree(ptree5), function() {
-                assert.equal(weakStartLocal('', ptree5, ''), 0, parenthesizeTree(ptree5));
-            });
-            it('Multi-Layer Case: '+parenthesizeTree(ptree6), function() {
-                assert.equal(weakStartLocal('', ptree6, ''), 6, parenthesizeTree(ptree6));
-            });
-        })
-    });
-}
+treeTrimmingTest();

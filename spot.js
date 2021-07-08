@@ -1133,7 +1133,8 @@ function ternMaxBranches(s, p, c){
 
 function ternMaxLeaves(s, p, c){
 	return(binMaxLeaves(s, p, c, 3));
-}//Modifications:
+}
+//Modifications:
 //8-28-2020 Edward Shingler created functions ["notMutualCommand","dominates","pairExists","areAdjacent"] and constraints ["ccPhi","antiCCPhi","mutualSplit"]
 //These constraints take an boolean argument called "adjacent" defaulted to false. If true, then each function only looks at adjacent words that would cause violations.
 
@@ -2012,7 +2013,7 @@ function accentAsHead(s, p, c){
 		}
 		
 		//if an accented word is discovered...
-		if((child.accent==="a" || child.accent==='A') && child.cat==="w"){
+		if(child.accent===true && child.cat==="w"){
 			aCount++;
 			//console.log("child.id ("+child.id+") is an accented word. aCount = "+aCount);
 		}
@@ -2356,14 +2357,22 @@ function matchMaxSyntax(sTree, pTree, sCat, options){
 	return matchSP(sTree, pTree, sCat, options);
  }
 
-//Match for any prosodic constituent
+//MatchSP, sCat to any prosodic constituent
 function matchSPAny(sTree, pTree, sCat, options){
 	options = options || {};
 	options.anyPCat = true;
 	return matchSP(sTree, pTree, sCat, options);
 }
 
- //Match all non-minimal syntactic nodes
+// MatchPS, pCat to any prosodic constituent
+// needs testing
+function matchPSAny(sTree, pTree, pCat, options){
+	options = options || {};
+	options.anyPCat = true;
+	return matchPS(sTree, pTree, pCat, options);
+}
+
+//Match all non-minimal syntactic nodes
 function matchNonMinSyntax(sTree, pTree, sCat, options){
 	options = options || {};
 	options.nonMinSyntax = true;
@@ -3238,7 +3247,7 @@ function ssHypLoc(stree, ptree, cat){
 	if(!ptree.children){
 		return vcount;
 	}
-	
+
 	if(ptree.children.length){		
 		var parentCat = ptree.cat;
 		var firstChildCat = ptree.children[0].cat;
@@ -3248,7 +3257,7 @@ function ssHypLoc(stree, ptree, cat){
 			vcount++;
 		}
 	}
-	
+
 	// Recurse
 	for(var i=0; i<ptree.children.length; i++){
 		child = ptree.children[i];
@@ -5055,7 +5064,7 @@ function record_analysis(){
     if(strGENboxes.length !== strMinBoxes.length || strGENboxes.length !== strMaxBoxes.length){
       const err = new Error("Missing interface element");
       displayError("Error: " + err.message + '. Interface is broken at "Generate Combinations and \
-      Permutations and cannot be saved at this time.');
+      Permutations" and the analysis cannot be saved at this time.');
       throw err;
     }
 
@@ -5617,8 +5626,7 @@ function makeAndDisplayTerminalStrings(){
     else{
         displayError(terminalStringGenInputMsg);
     }
-}
-/**
+}/**
  * Functions that manage what content is displayed or hidden on interface1.html
  * without actually generating content
  * 
@@ -6074,7 +6082,7 @@ window.addEventListener('load', function(){
 	document.getElementById('annotatedWithTones').addEventListener('click', toneOptionDisplay);
 	document.getElementById('showHeads').addEventListener('click', markProsodicHeadsDisplay);
 
-	/** ===CHECKING showHeads IF BinMaxHead CHECKED=== */
+	/** ===CHECKING showHeads IF BinMaxHead or BinMinHead CHECKED=== */
 	document.getElementById('binMaxHead').addEventListener('click', markProsodicHeadsDisplay);
 	document.getElementById('binMinHead').addEventListener('click', markProsodicHeadsDisplay);
 
@@ -6199,7 +6207,8 @@ window.addEventListener('load', function(){
 	document.getElementById('genStringsDoneButton').addEventListener('click', makeAndDisplayTerminalStrings);
 
 
-});/** 
+});
+/** 
  * Functions for handling sending the user's inputs on interface1.html to makeTableau() and for downloading it.
  *  saveAs()
  *  getCheckedConstraints()
@@ -6400,7 +6409,8 @@ function getOutputGenOptions() {
     //plug correct value into category options
     genOptions.rootCategory = spotForm['genOptions-rootCategory'].value;
     genOptions.recursiveCategory = "";
-    genOpsRC = spotForm['genOptions-recursiveCategory'];
+    //genOpsRC is an array passed in from the recursiveCategory checkboxes
+    var genOpsRC = spotForm['genOptions-recursiveCategory'];
     for (var i = 0; i<genOpsRC.length; i++){
         if(genOpsRC[i].value && genOpsRC[i].checked){
             if(genOptions.recursiveCategory.length){

@@ -781,7 +781,7 @@ function record_analysis(){
     if(strGENboxes.length !== strMinBoxes.length || strGENboxes.length !== strMaxBoxes.length){
       const err = new Error("Missing interface element");
       displayError("Error: " + err.message + '. Interface is broken at "Generate Combinations and \
-      Permutations and cannot be saved at this time.');
+      Permutations" and the analysis cannot be saved at this time.');
       throw err;
     }
 
@@ -1343,8 +1343,7 @@ function makeAndDisplayTerminalStrings(){
     else{
         displayError(terminalStringGenInputMsg);
     }
-}
-/**
+}/**
  * Functions that manage what content is displayed or hidden on interface1.html
  * without actually generating content
  * 
@@ -1800,7 +1799,7 @@ window.addEventListener('load', function(){
 	document.getElementById('annotatedWithTones').addEventListener('click', toneOptionDisplay);
 	document.getElementById('showHeads').addEventListener('click', markProsodicHeadsDisplay);
 
-	/** ===CHECKING showHeads IF BinMaxHead CHECKED=== */
+	/** ===CHECKING showHeads IF BinMaxHead or BinMinHead CHECKED=== */
 	document.getElementById('binMaxHead').addEventListener('click', markProsodicHeadsDisplay);
 	document.getElementById('binMinHead').addEventListener('click', markProsodicHeadsDisplay);
 
@@ -1925,7 +1924,8 @@ window.addEventListener('load', function(){
 	document.getElementById('genStringsDoneButton').addEventListener('click', makeAndDisplayTerminalStrings);
 
 
-});/** 
+});
+/** 
  * Functions for handling sending the user's inputs on interface1.html to makeTableau() and for downloading it.
  *  saveAs()
  *  getCheckedConstraints()
@@ -2126,7 +2126,8 @@ function getOutputGenOptions() {
     //plug correct value into category options
     genOptions.rootCategory = spotForm['genOptions-rootCategory'].value;
     genOptions.recursiveCategory = "";
-    genOpsRC = spotForm['genOptions-recursiveCategory'];
+    //genOpsRC is an array passed in from the recursiveCategory checkboxes
+    var genOpsRC = spotForm['genOptions-recursiveCategory'];
     for (var i = 0; i<genOpsRC.length; i++){
         if(genOpsRC[i].value && genOpsRC[i].checked){
             if(genOptions.recursiveCategory.length){
